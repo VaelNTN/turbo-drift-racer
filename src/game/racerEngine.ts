@@ -87,12 +87,12 @@ export interface InputState {
 }
 
 const ONLINE_RIVAL_NAMES = [
-  'TurboTimo',
+  'TurboTim',
   'NinaDrift',
   'MaxVeloce',
-  'PixelSenne',
+  'PixelSam',
   'RubyApex',
-  'BlitzKarel',
+  'BlitzKarl',
   'NovaRacer',
   'JettSlide',
 ];
@@ -976,10 +976,26 @@ export class TurboDriftEngine {
     this.renderMinimap(ctx, w);
   }
 
+  private cachedMinimapTop = 56;
+  private lastMinimapMeasure = 0;
+
+  private getMinimapTop(): number {
+    const now = performance.now();
+    if (now - this.lastMinimapMeasure > 400) {
+      this.lastMinimapMeasure = now;
+      const safeTopStr = getComputedStyle(document.documentElement).getPropertyValue('--safe-top');
+      const safeTop = Number.parseFloat(safeTopStr) || 0;
+      const hudEl = document.querySelector('.race-hud-top');
+      const hudBottom = hudEl ? hudEl.getBoundingClientRect().bottom : 0;
+      this.cachedMinimapTop = Math.max(safeTop + 56, hudBottom > 0 ? Math.ceil(hudBottom + 8) : 56);
+    }
+    return this.cachedMinimapTop;
+  }
+
   private renderMinimap(ctx: CanvasRenderingContext2D, viewW: number): void {
-    const mapSize = 86;
-    const mx = viewW - mapSize - 12;
-    const my = 72;
+    const mapSize = viewW < 400 ? 74 : 86;
+    const mx = viewW - mapSize - 10;
+    const my = this.getMinimapTop();
     const b = this.track.bounds;
     const span = Math.max(b.maxX - b.minX, b.maxY - b.minY);
     const s = (mapSize - 14) / span;

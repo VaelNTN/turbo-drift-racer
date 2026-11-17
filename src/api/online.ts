@@ -56,15 +56,16 @@ export function getDeviceId(): string {
 
 export function getPlayerName(): string {
   try {
-    return localStorage.getItem(KEY_NAME) || 'DriftKoning';
+    const saved = localStorage.getItem(KEY_NAME);
+    return !saved || saved === 'DriftKoning' ? 'DriftKing' : saved;
   } catch {
-    return 'DriftKoning';
+    return 'DriftKing';
   }
 }
 
 export function setPlayerName(name: string): void {
   try {
-    localStorage.setItem(KEY_NAME, name.trim().slice(0, 18) || 'DriftKoning');
+    localStorage.setItem(KEY_NAME, name.trim().slice(0, 18) || 'DriftKing');
   } catch {
     // ignore
   }
@@ -224,18 +225,26 @@ export async function submitRaceResult(
   }
 }
 
-export async function fetchTrackLeaderboard(trackId: string): Promise<OnlineLeaderboardEntry[]> {
+export interface LeaderboardResult {
+  entries: OnlineLeaderboardEntry[];
+  status: 'ok' | 'unconfigured' | 'offline';
+}
+
+export async function fetchTrackLeaderboard(trackId: string): Promise<LeaderboardResult> {
   const base = getApiUrl();
-  if (!base) return [];
+  if (!base) return { entries: [], status: 'unconfigured' };
   try {
     const res = await fetch(
       `${base}/api/turbo-drift/highscores?trackId=${encodeURIComponent(trackId)}&limit=25&deviceId=${encodeURIComponent(getDeviceId())}`
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { entries: [], status: 'offline' };
     const data = (await res.json()) as { entries?: OnlineLeaderboardEntry[] };
-    return Array.isArray(data.entries) ? data.entries : [];
+    return {
+      entries: Array.isArray(data.entries) ? data.entries : [],
+      status: 'ok',
+    };
   } catch {
-    return [];
+    return { entries: [], status: 'offline' };
   }
 }
 

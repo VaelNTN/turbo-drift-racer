@@ -10,20 +10,20 @@ interface ChassisSpec {
 }
 
 const CHASSIS_SPECS: ChassisSpec[] = [
-  { kind: 'f1', label: 'Formule-1', speed: 9, accel: 8, drift: 7, prefix: ['Apex', 'Turbo', 'Grand', 'Velocity', 'Nitro', 'Monaco', 'Aero', 'Sonic'] },
+  { kind: 'f1', label: 'Formula 1', speed: 9, accel: 8, drift: 7, prefix: ['Apex', 'Turbo', 'Grand', 'Velocity', 'Nitro', 'Monaco', 'Aero', 'Sonic'] },
   { kind: 'supercar', label: 'Supercar', speed: 9, accel: 7, drift: 8, prefix: ['Veloce', 'Hyper', 'Solar', 'Phantom', 'Pulse', 'Mirage', 'Zenith', 'Venom'] },
-  { kind: 'driftcoupe', label: 'Drift Coupé', speed: 7, accel: 8, drift: 10, prefix: ['Slide', 'Tokyo', 'Akina', 'Smoke', 'Sideways', 'Apex', 'Kanjo', 'Katana'] },
+  { kind: 'driftcoupe', label: 'Drift Coupe', speed: 7, accel: 8, drift: 10, prefix: ['Slide', 'Tokyo', 'Akina', 'Smoke', 'Sideways', 'Apex', 'Kanjo', 'Katana'] },
   { kind: 'muscle', label: 'Muscle Car', speed: 8, accel: 9, drift: 7, prefix: ['V8', 'Thunder', 'Bully', 'Titan', 'Fury', 'Charger', 'Bandit', 'Viper'] },
-  { kind: 'rally', label: 'Rally', speed: 7, accel: 9, drift: 9, prefix: ['Dirt', 'Gravel', 'Finn', 'Mud', 'Alpen', 'Turbo', 'Safari', 'Storm'] },
+  { kind: 'rally', label: 'Rally', speed: 7, accel: 9, drift: 9, prefix: ['Dirt', 'Gravel', 'Nordic', 'Mud', 'Alpine', 'Turbo', 'Safari', 'Storm'] },
   { kind: 'kart', label: 'Race Kart', speed: 6, accel: 10, drift: 9, prefix: ['Mini', 'Pocket', 'Spark', 'Zoom', 'Sprint', 'Zippy', 'Flash', 'Blitz'] },
   { kind: 'pickup', label: 'Pickup Truck', speed: 7, accel: 8, drift: 8, prefix: ['Ranch', 'Baja', 'Haul', 'Canyon', 'Ranger', 'Bull', 'Sierra', 'Dune'] },
-  { kind: 'monster', label: 'Monstertruck', speed: 7, accel: 8, drift: 7, prefix: ['Crush', 'Mega', 'Giga', 'Stomp', 'Beast', 'Mammoth', 'Boulder', 'Rex'] },
+  { kind: 'monster', label: 'Monster Truck', speed: 7, accel: 8, drift: 7, prefix: ['Crush', 'Mega', 'Giga', 'Stomp', 'Beast', 'Mammoth', 'Boulder', 'Rex'] },
   { kind: 'hotrod', label: 'Hot Rod', speed: 8, accel: 9, drift: 8, prefix: ['Flame', 'Chrome', 'Retro', 'Blaze', 'Rat', 'Cruiser', 'Nitro', 'Rebel'] },
-  { kind: 'van', label: 'Turbo Bus', speed: 6, accel: 8, drift: 9, prefix: ['Party', 'Pizza', 'Disco', 'Hippie', 'Express', 'Camper', 'Taco', 'Rocket'] },
+  { kind: 'van', label: 'Turbo Van', speed: 6, accel: 8, drift: 9, prefix: ['Party', 'Pizza', 'Disco', 'Hippie', 'Express', 'Camper', 'Taco', 'Rocket'] },
   { kind: 'cyberpod', label: 'Cyber Pod', speed: 9, accel: 8, drift: 8, prefix: ['Neon', 'Grid', 'Laser', 'Matrix', 'Synth', 'Pixel', 'Volt', 'Hex'] },
-  { kind: 'ufo', label: 'Schotel', speed: 8, accel: 9, drift: 9, prefix: ['Area51', 'Cosmo', 'Warp', 'Nova', 'Orbit', 'Nebula', 'Astro', 'Zeta'] },
+  { kind: 'ufo', label: 'UFO Saucer', speed: 8, accel: 9, drift: 9, prefix: ['Area51', 'Cosmo', 'Warp', 'Nova', 'Orbit', 'Nebula', 'Astro', 'Zeta'] },
   { kind: 'tank', label: 'Mini Tank', speed: 7, accel: 7, drift: 8, prefix: ['Panzer', 'Iron', 'Siege', 'Armor', 'Cannon', 'Fortress', 'Steel', 'Blitz'] },
-  { kind: 'buggy', label: 'Duinbuggy', speed: 7, accel: 9, drift: 9, prefix: ['Sand', 'Hopper', 'Oase', 'Sun', 'Breeze', 'Dune', 'Trail', 'Jump'] },
+  { kind: 'buggy', label: 'Dune Buggy', speed: 7, accel: 9, drift: 9, prefix: ['Sand', 'Hopper', 'Oasis', 'Sun', 'Breeze', 'Dune', 'Trail', 'Jump'] },
 ];
 
 const CAR_PALETTES: Array<{
@@ -81,17 +81,17 @@ interface ArchetypeSpec {
 }
 
 const ARCHETYPES: ArchetypeSpec[] = [
-  { type: 'racer', label: 'Pro Coureur', names: ['Max', 'Luna', 'Dex', 'Senne', 'Kira', 'Milo', 'Nora', 'Boaz'], skins: ['#fed7aa', '#fdba74', '#d97706', '#92400e', '#fde68a', '#f5d0c5', '#c28b63', '#8d5524'] },
+  { type: 'racer', label: 'Pro Racer', names: ['Max', 'Luna', 'Dex', 'Sam', 'Kira', 'Milo', 'Nora', 'Cole'], skins: ['#fed7aa', '#fdba74', '#d97706', '#92400e', '#fde68a', '#f5d0c5', '#c28b63', '#8d5524'] },
   { type: 'ninja', label: 'Ninja', names: ['Kage', 'Ryu', 'Hana', 'Shin', 'Tora', 'Yuki', 'Zed', 'Sora'], skins: ['#fed7aa', '#fde68a', '#f5d0c5', '#fdba74', '#fed7aa', '#fde68a', '#f5d0c5', '#fdba74'] },
   { type: 'robot', label: 'Robot', names: ['Bolt', 'Chip', 'Mecha', 'Servo', 'Byte', 'Sparky', 'Tron', 'Aegis'], skins: ['#cbd5e1', '#94a3b8', '#e2e8f0', '#64748b', '#bae6fd', '#fde68a', '#fecaca', '#d9f99d'] },
   { type: 'alien', label: 'Alien', names: ['Zorg', 'Blip', 'Xena', 'Quark', 'Vex', 'Gloop', 'Nova', 'Zuzu'], skins: ['#4ade80', '#22d3ee', '#c084fc', '#a3e635', '#38bdf8', '#f472b6', '#fb7185', '#fde047'] },
-  { type: 'pirate', label: 'Piraat', names: ['Baard', 'Ruby', 'Haak', 'Storm', 'Jack', 'Anne', 'Flint', 'Kora'], skins: ['#fdba74', '#fed7aa', '#d97706', '#f5d0c5', '#c28b63', '#fde68a', '#92400e', '#fdba74'] },
-  { type: 'knight', label: 'Ridder', names: ['Arthur', 'Valerie', 'Lancel', 'Gawain', 'Edda', 'Roland', 'Bram', 'Isolde'], skins: ['#cbd5e1', '#e2e8f0', '#fde047', '#94a3b8', '#bae6fd', '#fed7aa', '#fecaca', '#d8b4fe'] },
-  { type: 'king', label: 'Koning', names: ['Rex', 'Regina', 'Karel', 'Aurel', 'Sultan', 'Zara', 'Midas', 'Cleo'], skins: ['#fed7aa', '#fdba74', '#d97706', '#fde68a', '#8d5524', '#f5d0c5', '#c28b63', '#fed7aa'] },
+  { type: 'pirate', label: 'Pirate', names: ['Beard', 'Ruby', 'Hook', 'Storm', 'Jack', 'Anne', 'Flint', 'Cora'], skins: ['#fdba74', '#fed7aa', '#d97706', '#f5d0c5', '#c28b63', '#fde68a', '#92400e', '#fdba74'] },
+  { type: 'knight', label: 'Knight', names: ['Arthur', 'Valerie', 'Lancel', 'Gawain', 'Edda', 'Roland', 'Drake', 'Isolde'], skins: ['#cbd5e1', '#e2e8f0', '#fde047', '#94a3b8', '#bae6fd', '#fed7aa', '#fecaca', '#d8b4fe'] },
+  { type: 'king', label: 'King', names: ['Rex', 'Regina', 'Charles', 'Aurel', 'Sultan', 'Zara', 'Midas', 'Cleo'], skins: ['#fed7aa', '#fdba74', '#d97706', '#fde68a', '#8d5524', '#f5d0c5', '#c28b63', '#fed7aa'] },
   { type: 'astronaut', label: 'Astronaut', names: ['Buzz', 'Stella', 'Orion', 'Comet', 'Neil', 'Lyra', 'Cosmo', 'Vega'], skins: ['#f8fafc', '#e2e8f0', '#bae6fd', '#fef9c3', '#f1f5f9', '#e0f2fe', '#fce7f3', '#dcfce7'] },
-  { type: 'cat', label: 'Kat', names: ['Minoes', 'Tijger', 'Poes', 'Felix', 'Whisky', 'Cleo', 'Binx', 'Neko'], skins: ['#fb923c', '#f8fafc', '#475569', '#fcd34d', '#cbd5e1', '#f472b6', '#94a3b8', '#fed7aa'] },
-  { type: 'dog', label: 'Hond', names: ['Bello', 'Maxi', 'Woef', 'Rocco', 'Biscuit', 'Rexy', 'Duke', 'Pebbles'], skins: ['#d97706', '#f8fafc', '#92400e', '#fcd34d', '#78350f', '#cbd5e1', '#fb923c', '#e5e7eb'] },
-  { type: 'wizard', label: 'Tovenaar', names: ['Merlijn', 'Nyx', 'Gandor', 'Elara', 'Zoltar', 'Freya', 'Albus', 'Morgana'], skins: ['#fed7aa', '#f5d0c5', '#fde68a', '#d97706', '#c28b63', '#fed7aa', '#8d5524', '#fdba74'] },
+  { type: 'cat', label: 'Cat', names: ['Mittens', 'Tiger', 'Whiskers', 'Felix', 'Mochi', 'Cleo', 'Binx', 'Neko'], skins: ['#fb923c', '#f8fafc', '#475569', '#fcd34d', '#cbd5e1', '#f472b6', '#94a3b8', '#fed7aa'] },
+  { type: 'dog', label: 'Dog', names: ['Buddy', 'Maxie', 'Woof', 'Rocco', 'Biscuit', 'Rexy', 'Duke', 'Pebbles'], skins: ['#d97706', '#f8fafc', '#92400e', '#fcd34d', '#78350f', '#cbd5e1', '#fb923c', '#e5e7eb'] },
+  { type: 'wizard', label: 'Wizard', names: ['Merlin', 'Nyx', 'Gandor', 'Elara', 'Zoltar', 'Freya', 'Albus', 'Morgana'], skins: ['#fed7aa', '#f5d0c5', '#fde68a', '#d97706', '#c28b63', '#fed7aa', '#8d5524', '#fdba74'] },
   { type: 'cowboy', label: 'Cowboy', names: ['Billy', 'Jessie', 'Clint', 'Dolly', 'Tex', 'Calamity', 'Wyatt', 'Savannah'], skins: ['#fdba74', '#fed7aa', '#c28b63', '#f5d0c5', '#92400e', '#fde68a', '#d97706', '#fed7aa'] },
   { type: 'dino', label: 'Dino', names: ['Raptor', 'T-Rex', 'Spike', 'Yoshi', 'Fang', 'Ptera', 'Stego', 'Chomp'], skins: ['#22c55e', '#f97316', '#ef4444', '#06b6d4', '#a855f7', '#eab308', '#ec4899', '#84cc16'] },
   { type: 'punk', label: 'Punk', names: ['Spike', 'Roxy', 'Axel', 'Jett', 'Sid', 'Vixen', 'Blaze', 'Rebel'], skins: ['#fed7aa', '#f5d0c5', '#fdba74', '#d97706', '#fde68a', '#c28b63', '#92400e', '#fed7aa'] },
