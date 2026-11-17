@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Turbo Drift Racer</string>
+    <string name="title_activity_main">Turbo Drift Racer</string>
+    <string name="package_name">com.turbodrift.racer</string>
+    <string name="custom_url_scheme">com.turbodrift.racer</string>
+</resources>
