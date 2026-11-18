@@ -155,32 +155,69 @@ export function drawDriverAvatar(
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale, scale);
-  ctx.rotate(lean * 0.25);
+  ctx.rotate(lean * 0.28);
 
-  // Shoulders / race suit
+  // Fluttering scarf / racing cape tail behind driver (-X)
+  if (
+    driver.archetype === 'racer' ||
+    driver.archetype === 'ninja' ||
+    driver.archetype === 'knight' ||
+    driver.archetype === 'punk' ||
+    driver.archetype === 'pirate'
+  ) {
+    ctx.fillStyle = driver.accent;
+    ctx.beginPath();
+    ctx.moveTo(-3.5, -2.2);
+    ctx.quadraticCurveTo(-8.5, -3.5 - lean * 2.5, -11.5, -0.8 - lean * 3.5);
+    ctx.lineTo(-9.5, 2.2 - lean * 2.5);
+    ctx.lineTo(-3.5, 1.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Shoulders / race suit + shoulder pads
   ctx.fillStyle = driver.suit;
   ctx.beginPath();
-  ctx.ellipse(-1, 0, 5.5, 8.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(-1, 0, 5.7, 8.8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#0f172a';
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Suit stripe
+  // Suit racing stripe & shoulder epaulettes
   ctx.fillStyle = driver.accent;
-  ctx.fillRect(-2, -6.5, 2.5, 13);
-
-  // Hands gripping steering wheel forward (+x)
-  ctx.fillStyle = driver.skin;
+  ctx.fillRect(-2.2, -6.8, 2.6, 13.6);
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
   ctx.beginPath();
-  ctx.arc(5.5, -5, 2.1, 0, Math.PI * 2);
-  ctx.arc(5.5, 5, 2.1, 0, Math.PI * 2);
+  ctx.ellipse(-0.5, -6.5, 2.6, 1.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(-0.5, 6.5, 2.6, 1.6, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // Forearms + gloved hands gripping the steering wheel forward (+x)
+  ctx.strokeStyle = driver.suit;
+  ctx.lineWidth = 2.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0.5, -6.5);
+  ctx.lineTo(5.2, -4.8);
+  ctx.moveTo(0.5, 6.5);
+  ctx.lineTo(5.2, 4.8);
+  ctx.stroke();
+
+  // Racing gloves with accent cuffs
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(5.5, -4.8, 2.2, 0, Math.PI * 2);
+  ctx.arc(5.5, 4.8, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = driver.accent;
+  ctx.fillRect(3.6, -5.8, 1.4, 2);
+  ctx.fillRect(3.6, 3.8, 1.4, 2);
 
   // Head
   ctx.fillStyle = driver.skin;
   ctx.beginPath();
-  ctx.arc(0, 0, 5.4, 0, Math.PI * 2);
+  ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#0f172a';
   ctx.lineWidth = 1.2;
@@ -189,23 +226,34 @@ export function drawDriverAvatar(
   // Archetype details (top-down facing +X)
   switch (driver.archetype) {
     case 'racer': {
-      // Racing helmet + visor
+      // Racing helmet + glossy tinted visor + chin vent
       ctx.fillStyle = driver.accent;
       ctx.beginPath();
-      ctx.arc(-0.3, 0, 5.6, Math.PI * 0.3, Math.PI * 1.7);
+      ctx.arc(-0.2, 0, 5.8, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      // Center helmet stripe
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(-5.4, -1.1, 6.2, 2.2);
+      // Tinted visor + specular glint
       ctx.fillStyle = driver.visor;
-      ctx.fillRect(1.5, -3.5, 3.6, 7);
+      ctx.beginPath();
+      ctx.roundRect(1.2, -3.7, 3.8, 7.4, 1.6);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.fillRect(2.1, -2.9, 1.1, 3.1);
       break;
     }
     case 'ninja': {
       // Hood + headband tails
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
-      ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
+      ctx.arc(0, 0, 5.6, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = driver.accent;
-      ctx.fillRect(-5.5, -1.5, 3.5, 3);
+      ctx.fillRect(-5.6, -1.6, 3.6, 3.2);
       ctx.fillStyle = driver.skin;
       ctx.fillRect(1.5, -2.8, 3, 5.6);
       ctx.fillStyle = '#0f172a';
@@ -216,8 +264,13 @@ export function drawDriverAvatar(
     case 'robot': {
       ctx.fillStyle = driver.skin;
       ctx.fillRect(-4.8, -4.8, 9.6, 9.6);
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.1;
+      ctx.strokeRect(-4.8, -4.8, 9.6, 9.6);
       ctx.fillStyle = driver.visor;
       ctx.fillRect(1.2, -3.6, 3.4, 7.2);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(2, -2.8, 1, 2.5);
       ctx.fillStyle = driver.accent;
       ctx.beginPath();
       ctx.arc(-3.5, 0, 1.8, 0, Math.PI * 2);
@@ -225,11 +278,15 @@ export function drawDriverAvatar(
       break;
     }
     case 'alien': {
-      // Big black oval eyes + antenna
       ctx.fillStyle = '#020617';
       ctx.beginPath();
       ctx.ellipse(2.3, -2.2, 1.8, 1.2, -0.3, 0, Math.PI * 2);
       ctx.ellipse(2.3, 2.2, 1.8, 1.2, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e0f2fe';
+      ctx.beginPath();
+      ctx.arc(2.7, -2.4, 0.45, 0, Math.PI * 2);
+      ctx.arc(2.7, 2.0, 0.45, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = driver.accent;
       ctx.lineWidth = 1.6;
@@ -244,7 +301,6 @@ export function drawDriverAvatar(
       break;
     }
     case 'pirate': {
-      // Tricorn hat + eyepatch
       ctx.fillStyle = '#1e1b4b';
       ctx.beginPath();
       ctx.moveTo(4.5, 0);
@@ -252,6 +308,9 @@ export function drawDriverAvatar(
       ctx.lineTo(-5, 6.8);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
       ctx.fillStyle = driver.accent;
       ctx.beginPath();
       ctx.arc(-1, 0, 1.6, 0, Math.PI * 2);
@@ -270,7 +329,6 @@ export function drawDriverAvatar(
       break;
     }
     case 'king': {
-      // Gold crown
       ctx.fillStyle = '#facc15';
       ctx.beginPath();
       ctx.arc(0, 0, 4.6, 0, Math.PI * 2);
@@ -300,11 +358,14 @@ export function drawDriverAvatar(
       ctx.beginPath();
       ctx.arc(1.5, 0, 4.2, -Math.PI * 0.45, Math.PI * 0.45);
       ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.beginPath();
+      ctx.arc(2.5, -1.5, 1.1, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case 'cat':
     case 'dog': {
-      // Pointy cat ears or floppy dog ears
       ctx.fillStyle = driver.skin;
       if (driver.archetype === 'cat') {
         ctx.beginPath();
@@ -326,7 +387,6 @@ export function drawDriverAvatar(
         ctx.ellipse(-1.5, 5.8, 2.6, 1.7, 0.4, 0, Math.PI * 2);
         ctx.fill();
       }
-      // Cute nose & eyes
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
       ctx.arc(4.8, 0, 1.3, 0, Math.PI * 2);
@@ -336,7 +396,6 @@ export function drawDriverAvatar(
       break;
     }
     case 'wizard': {
-      // Pointed wizard hat trailing behind (-x)
       ctx.fillStyle = driver.suit;
       ctx.beginPath();
       ctx.arc(0, 0, 6.3, 0, Math.PI * 2);
@@ -362,7 +421,6 @@ export function drawDriverAvatar(
       break;
     }
     case 'dino': {
-      // Spikes along back + snout
       ctx.fillStyle = driver.skin;
       ctx.beginPath();
       ctx.ellipse(2.5, 0, 4.5, 3.8, 0, 0, Math.PI * 2);
@@ -374,13 +432,13 @@ export function drawDriverAvatar(
         ctx.fill();
       }
       ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
       ctx.arc(3.5, -2.1, 0.9, 0, Math.PI * 2);
       ctx.arc(3.5, 2.1, 0.9, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
     case 'punk': {
-      // Neon mohawk
       ctx.fillStyle = driver.accent;
       ctx.fillRect(-5.5, -1.6, 9, 3.2);
       ctx.fillStyle = '#0f172a';
@@ -474,24 +532,33 @@ export function drawCarWithDriver(
     ctx.fill();
   }
 
-  // Wheels (bigger for monster/buggy, wider for f1/tank)
-  const wheelW = car.chassis === 'monster' ? 11 : car.chassis === 'kart' ? 7 : 9;
-  const wheelH = car.chassis === 'monster' ? 6 : car.chassis === 'tank' ? 5.5 : 4.2;
-  const wheelY = car.chassis === 'monster' ? 13.5 : car.chassis === 'f1' ? 12.2 : 11.2;
+  // Wheels (with tread ribs, alloy rim spokes, and brake caliper hint)
+  const wheelW = car.chassis === 'monster' ? 11.5 : car.chassis === 'kart' ? 7.5 : 9.6;
+  const wheelH = car.chassis === 'monster' ? 6.2 : car.chassis === 'tank' ? 5.5 : 4.5;
+  const wheelY = car.chassis === 'monster' ? 13.8 : car.chassis === 'f1' ? 12.6 : 11.5;
 
   const drawWheel = (wx: number, wy: number, turnAngle: number): void => {
     ctx.save();
     ctx.translate(wx, wy);
     ctx.rotate(turnAngle);
+    // Tire body
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(-wheelW * 0.5, -wheelH * 0.5, wheelW, wheelH);
-    ctx.fillStyle = '#64748b';
-    ctx.fillRect(-wheelW * 0.2, -wheelH * 0.25, wheelW * 0.4, wheelH * 0.5);
+    ctx.beginPath();
+    ctx.roundRect(-wheelW * 0.5, -wheelH * 0.5, wheelW, wheelH, 1.4);
+    ctx.fill();
+    // Tread groove notches
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(-wheelW * 0.34, -wheelH * 0.5, 1.2, wheelH);
+    ctx.fillRect(wheelW * 0.18, -wheelH * 0.5, 1.2, wheelH);
+    // Brake caliper & alloy rim center
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-1.4, -wheelH * 0.35, 2.8, wheelH * 0.7);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(-wheelW * 0.2, -wheelH * 0.22, wheelW * 0.4, wheelH * 0.44);
     ctx.restore();
   };
 
   if (car.chassis === 'ufo') {
-    // UFO glows instead of wheels
     ctx.fillStyle = car.underglow;
     ctx.globalAlpha = alpha * 0.35;
     ctx.beginPath();
@@ -499,7 +566,6 @@ export function drawCarWithDriver(
     ctx.fill();
     ctx.globalAlpha = alpha;
   } else if (car.chassis === 'tank') {
-    // Tank treads
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(-20, -14, 40, 6);
     ctx.fillRect(-20, 8, 40, 6);
@@ -508,10 +574,17 @@ export function drawCarWithDriver(
     ctx.strokeRect(-20, -14, 40, 6);
     ctx.strokeRect(-20, 8, 40, 6);
   } else {
-    drawWheel(13, -wheelY, steer * 0.48);
-    drawWheel(13, wheelY, steer * 0.48);
+    drawWheel(13, -wheelY, steer * 0.52);
+    drawWheel(13, wheelY, steer * 0.52);
     drawWheel(-13, -wheelY, 0);
     drawWheel(-13, wheelY, 0);
+  }
+
+  // Side mirrors (for standard/supercar/drift/muscle/rally/hotrod/van/pickup)
+  if (car.chassis !== 'ufo' && car.chassis !== 'tank' && car.chassis !== 'f1' && car.chassis !== 'kart') {
+    ctx.fillStyle = car.accent;
+    ctx.fillRect(6, -12.6, 3.2, 2.2);
+    ctx.fillRect(6, 10.4, 3.2, 2.2);
   }
 
   // Chassis Body
@@ -642,6 +715,12 @@ export function drawCarWithDriver(
       break;
     }
     default: {
+      // Rear diffuser fins
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(-24, -7.5, 3, 2.5);
+      ctx.fillRect(-24, -1.2, 3, 2.4);
+      ctx.fillRect(-24, 5, 3, 2.5);
+
       ctx.fillStyle = car.primary;
       ctx.beginPath();
       ctx.roundRect(-22, -10.5, 45, 21, 7);
@@ -650,13 +729,31 @@ export function drawCarWithDriver(
       ctx.fillStyle = car.secondary;
       ctx.fillRect(-19, -3.6, 39, 2.5);
       ctx.fillRect(-19, 1.1, 39, 2.5);
+      // Sculpted hood vents
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(12.5, -6.8, 4.5, 2.2);
+      ctx.fillRect(12.5, 4.6, 4.5, 2.2);
+      // Glossy angled windshield + diagonal glass reflection
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
-      ctx.roundRect(4, -7.8, 7, 15.6, 2);
+      ctx.roundRect(4.5, -7.8, 6.8, 15.6, 2);
       ctx.fill();
+      ctx.fillStyle = 'rgba(186, 230, 253, 0.42)';
+      ctx.beginPath();
+      ctx.moveTo(6, -6.5);
+      ctx.lineTo(10.2, -3.5);
+      ctx.lineTo(9, -1);
+      ctx.lineTo(5.2, -4);
+      ctx.closePath();
+      ctx.fill();
+
       if (car.chassis === 'supercar' || car.chassis === 'driftcoupe' || car.chassis === 'rally') {
         ctx.fillStyle = car.accent;
         ctx.fillRect(-23.5, -10, 4.5, 20);
+        // Wing endplates
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(-24.2, -10.8, 5.5, 2);
+        ctx.fillRect(-24.2, 8.8, 5.5, 2);
       }
       break;
     }
@@ -672,13 +769,19 @@ export function drawCarWithDriver(
   ctx.closePath();
   ctx.fill();
 
-  // Open cockpit well so driver stands out crisply
+  // Open cockpit well + visible steering wheel rim
   ctx.fillStyle = '#020617';
   ctx.beginPath();
   ctx.ellipse(-2, 0, 7.2, 8.8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = car.accent;
   ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(2.8, 0, 3.8, -Math.PI * 0.48, Math.PI * 0.48);
   ctx.stroke();
 
   // Headlights + subtle forward beam glint
@@ -711,7 +814,7 @@ export function drawCarWithDriver(
   }
 
   // Driver inside cockpit leaning with steering!
-  drawDriverAvatar(ctx, driver, -2.5, 0, 0.92, steer);
+  drawDriverAvatar(ctx, driver, -2.5, 0, 0.94, steer);
 
   ctx.restore();
 }
