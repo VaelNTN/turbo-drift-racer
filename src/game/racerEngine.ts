@@ -28,6 +28,25 @@ interface SparkParticle {
   maxLife: number;
   color: string;
   size: number;
+  isSmoke: boolean;
+}
+
+interface FloatingPopup {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+interface AmbientMote {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  phase: number;
 }
 
 interface SimRacer {
@@ -43,11 +62,13 @@ interface SimRacer {
   velAngle: number; // actual travel heading during drift
   speed: number;
   steer: number;
+  braking: boolean;
   drifting: boolean;
   driftDir: number; // -1 left, +1 right, 0 none
   driftCharge: number; // seconds
   driftLevel: 0 | 1 | 2 | 3;
   boostLeft: number;
+  boostTier: 0 | 1 | 2 | 3;
   respawnTimer: number;
   hazardCooldown: number;
 
@@ -111,6 +132,8 @@ export class TurboDriftEngine {
   private racers: SimRacer[] = [];
   private skidMarks: SkidMark[] = [];
   private particles: SparkParticle[] = [];
+  private popups: FloatingPopup[] = [];
+  private ambientMotes: AmbientMote[] = [];
 
   private input: InputState = {
     left: false,
@@ -123,8 +146,10 @@ export class TurboDriftEngine {
   private countdownTimer = 3.2;
   private lastCountdownShown = 4;
   private raceTimeMs = 0;
+  private animTime = 0;
   private finishedEmitted = false;
   private rafId = 0;
+  private running = false;
   private lastTs = 0;
   private lastHudPush = 0;
 
@@ -133,8 +158,30 @@ export class TurboDriftEngine {
   private camZoom = 1;
   private shake = 0;
 
+  private cssW = 0;
+  private cssH = 0;
+  private dpr = 1;
+  private cachedMinimapTop = 56;
+  private lastMinimapMeasure = 0;
+
   private onHud: (snap: RaceHudSnapshot) => void;
   private onFinish?: (snap: RaceHudSnapshot) => void;
+
+  private boundResize = (): void => {
+    this.lastMinimapMeasure = 0;
+    this.syncCanvasMetrics();
+  };
+  private boundOrientation = (): void => {
+    window.setTimeout(() => {
+      this.lastMinimapMeasure = 0;
+      this.syncCanvasMetrics();
+    }, 90);
+  };
+  private boundVisibility = (): void => {
+    if (!document.hidden) {
+      this.lastTs = performance.now();
+    }
+  };
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -167,6 +214,38 @@ export class TurboDriftEngine {
     }
 
     this.initGrid(opts.playerCarId, opts.playerDriverId);
+    this.initAmbientMotes();
+  }
+
+  private initAmbientMotes(): void {
+    const b = this.track.bounds;
+    const w = b.maxX - b.minX;
+    const h = b.maxY - b.minY;
+    for (let i = 0; i < 65; i++) {
+      this.ambientMotes.push({
+        x: b.minX + Math.random() * w,
+        y: b.minY + Math.random() * h,
+        vx: (Math.random() - 0.5) * 32,
+        vy: this.track.def.theme === 'volcano' ? -25 - Math.random() * 25 : 18 + Math.random() * 22,
+        size: 2 + Math.random() * 3,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  private syncCanvasMetrics(): void {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = Math.max(1, Math.round(rect.width * dpr));
+    const ch = Math.max(1, Math.round(rect.height * dpr));
+    if (this.canvas.width !== cw || this.canvas.height !== ch) {
+      this.canvas.width = cw;
+      this.canvas.height = ch;
+    }
+    this.cssW = rect.width;
+    this.cssH = rect.height;
+    this.dpr = dpr;
   }
 
   private initGrid(playerCarId: number, playerDriverId: number): void {
@@ -179,7 +258,6 @@ export class TurboDriftEngine {
     const aiDiffFactor =
       this.difficulty === 'easy' ? 0.81 : this.difficulty === 'medium' ? 0.94 : 1.03;
 
-    // Shuffled rival names
     const names = [...ONLINE_RIVAL_NAMES].sort(() => Math.random() - 0.5);
 
     for (let slot = 0; slot < totalRacers; slot++) {
@@ -213,15 +291,17 @@ export class TurboDriftEngine {
         velAngle: ang,
         speed: 0,
         steer: 0,
+        braking: false,
         drifting: false,
         driftDir: 0,
         driftCharge: 0,
         driftLevel: 0,
         boostLeft: 0,
+        boostTier: 0,
         respawnTimer: 0,
         hazardCooldown: 0,
         segIndex: segIdx,
-        lap: 0, // starts slightly behind start line, increments to 1 on crossing start
+        lap: 0,
         maxProgress: -(n - segIdx) / n,
         progress: -(n - segIdx) / n,
         finished: false,
@@ -252,8 +332,19 @@ export class TurboDriftEngine {
   }
 
   start(): void {
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+    }
+    this.running = true;
+    this.syncCanvasMetrics();
+    window.addEventListener('resize', this.boundResize);
+    window.addEventListener('orientationchange', this.boundOrientation);
+    document.addEventListener('visibilitychange', this.boundVisibility);
+
     this.lastTs = performance.now();
     const tick = (ts: number): void => {
+      if (!this.running) return;
       const dt = Math.min(0.05, Math.max(0.001, (ts - this.lastTs) / 1000));
       this.lastTs = ts;
       this.update(dt);
@@ -269,7 +360,15 @@ export class TurboDriftEngine {
   }
 
   destroy(): void {
-    cancelAnimationFrame(this.rafId);
+    this.running = false;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+    }
+    window.removeEventListener('resize', this.boundResize);
+    window.removeEventListener('orientationchange', this.boundOrientation);
+    document.removeEventListener('visibilitychange', this.boundVisibility);
+    racerSound.clearPending();
     if (this.roomClient) {
       this.roomClient.close();
       this.roomClient = null;
@@ -280,7 +379,14 @@ export class TurboDriftEngine {
     return this.racers.find((r) => r.isPlayer)!;
   }
 
+  private pushPopup(x: number, y: number, text: string, color: string): void {
+    if (this.popups.length >= 16) this.popups.shift();
+    this.popups.push({ x, y, text, color, life: 0.72, maxLife: 0.72 });
+  }
+
   private update(dt: number): void {
+    this.animTime += dt;
+
     // Countdown handling
     if (this.countdownTimer > 0) {
       this.countdownTimer -= dt;
@@ -330,7 +436,6 @@ export class TurboDriftEngine {
 
     for (const r of this.racers) {
       if (r.isRemote) {
-        // Smooth interpolation for remote human players
         if (r.targetX !== undefined && r.targetY !== undefined) {
           r.x += (r.targetX - r.x) * Math.min(1, dt * 12);
           r.y += (r.targetY - r.y) * Math.min(1, dt * 12);
@@ -343,10 +448,10 @@ export class TurboDriftEngine {
       }
 
       if (!canDrive) {
-        // Allow little wheel wiggle before start
         if (r.isPlayer) {
           const targetSteer = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
           r.steer += (targetSteer - r.steer) * Math.min(1, dt * 10);
+          r.braking = this.input.brake;
         }
         continue;
       }
@@ -384,16 +489,51 @@ export class TurboDriftEngine {
       }
     }
 
-    // Update particles
+    // Update ambient motes
+    const b = this.track.bounds;
+    for (const m of this.ambientMotes) {
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      if (m.x < b.minX) m.x = b.maxX;
+      else if (m.x > b.maxX) m.x = b.minX;
+      if (m.y < b.minY) m.y = b.maxY;
+      else if (m.y > b.maxY) m.y = b.minY;
+    }
+
+    // Update particles (sparks & expanding tire smoke)
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const pt = this.particles[i];
       pt.x += pt.vx * dt;
       pt.y += pt.vy * dt;
+      if (pt.isSmoke) {
+        pt.vx *= 0.94;
+        pt.vy *= 0.94;
+        pt.size += dt * 14;
+      }
       pt.life -= dt;
       if (pt.life <= 0) this.particles.splice(i, 1);
     }
-    if (this.skidMarks.length > 450) {
-      this.skidMarks.splice(0, this.skidMarks.length - 450);
+    if (this.particles.length > 180) {
+      this.particles.splice(0, this.particles.length - 180);
+    }
+
+    // Persistent-fading skidmarks
+    for (let i = this.skidMarks.length - 1; i >= 0; i--) {
+      this.skidMarks[i].alpha -= dt * 0.11;
+      if (this.skidMarks[i].alpha <= 0.02) {
+        this.skidMarks.splice(i, 1);
+      }
+    }
+    if (this.skidMarks.length > 360) {
+      this.skidMarks.splice(0, this.skidMarks.length - 360);
+    }
+
+    // Floating popups
+    for (let i = this.popups.length - 1; i >= 0; i--) {
+      const pop = this.popups[i];
+      pop.life -= dt;
+      pop.y -= dt * 36;
+      if (pop.life <= 0) this.popups.splice(i, 1);
     }
 
     // Smooth camera follow player
@@ -402,7 +542,7 @@ export class TurboDriftEngine {
     const lookY = player.y + Math.sin(player.angle) * Math.min(95, player.speed * 0.17);
     this.camX += (lookX - this.camX) * Math.min(1, dt * 8);
     this.camY += (lookY - this.camY) * Math.min(1, dt * 8);
-    const targetZoom = player.boostLeft > 0 ? 0.94 : 1.02 - Math.min(0.1, (player.speed / 650) * 0.08);
+    const targetZoom = player.boostLeft > 0 ? 0.93 : 1.02 - Math.min(0.1, (player.speed / 650) * 0.08);
     this.camZoom += (targetZoom - this.camZoom) * Math.min(1, dt * 4);
     this.shake = Math.max(0, this.shake - dt * 16);
 
@@ -418,11 +558,12 @@ export class TurboDriftEngine {
 
   private mergeRemoteRacers(remotes: OnlineRacerSnapshot[]): void {
     const activeIds = new Set(remotes.map((r) => r.deviceId));
-    // Replace bots progressively if real remote racers join
     for (const remote of remotes) {
+      if (!Number.isFinite(remote.x) || !Number.isFinite(remote.y) || !Number.isFinite(remote.angle)) {
+        continue;
+      }
       let existing = this.racers.find((r) => r.id === remote.deviceId);
       if (!existing) {
-        // Reuse an unfinished AI slot so grid stays <= 6..8 clean
         const botIdx = this.racers.findIndex((r) => !r.isPlayer && !r.isRemote);
         const target: SimRacer = {
           id: remote.deviceId,
@@ -437,11 +578,13 @@ export class TurboDriftEngine {
           velAngle: remote.angle,
           speed: remote.speed,
           steer: remote.steer,
+          braking: false,
           drifting: remote.driftLevel > 0,
           driftDir: 0,
           driftCharge: 0,
           driftLevel: remote.driftLevel,
           boostLeft: remote.boostLeft,
+          boostTier: remote.boostLeft > 0 ? 1 : 0,
           respawnTimer: 0,
           hazardCooldown: 0,
           segIndex: 0,
@@ -487,7 +630,6 @@ export class TurboDriftEngine {
       }
     }
 
-    // Keep track of disconnected remote IDs gracefully
     for (const r of this.racers) {
       if (r.isRemote && !activeIds.has(r.id)) {
         r.speed *= 0.95;
@@ -500,6 +642,16 @@ export class TurboDriftEngine {
     const pts = this.track.points;
     const n = pts.length;
     const halfW = this.track.def.roadWidth * 0.5;
+
+    // NaN/Infinity guard
+    if (!Number.isFinite(r.x) || !Number.isFinite(r.y) || !Number.isFinite(r.speed) || !Number.isFinite(r.angle)) {
+      const safePt = pts[Math.max(0, Math.min(n - 1, r.segIndex))];
+      r.x = safePt.x;
+      r.y = safePt.y;
+      r.angle = Math.atan2(safePt.ty, safePt.tx);
+      r.velAngle = r.angle;
+      r.speed = 120;
+    }
 
     if (r.respawnTimer > 0) {
       r.respawnTimer -= dt;
@@ -519,6 +671,7 @@ export class TurboDriftEngine {
 
     r.hazardCooldown = Math.max(0, r.hazardCooldown - dt);
     r.boostLeft = Math.max(0, r.boostLeft - dt);
+    if (r.boostLeft <= 0) r.boostTier = 0;
 
     // Controls: Player vs AI
     let steerCmd = 0;
@@ -532,7 +685,6 @@ export class TurboDriftEngine {
       wantBrake = this.input.brake;
       wantDrift = this.input.drift;
     } else {
-      // AI Steering & pacing toward spline lookAhead
       const targetIdx = (r.segIndex + r.aiLookAhead) % n;
       const tp = pts[targetIdx];
       const tx = tp.x + tp.nx * (r.aiTargetOffset * halfW);
@@ -542,7 +694,6 @@ export class TurboDriftEngine {
       steerCmd = Math.max(-1, Math.min(1, deltaAngle * 2.2));
       wantGas = true;
 
-      // Hard/Medium AI initiates drifts on sharp corners
       if (!r.finished && this.difficulty !== 'easy' && Math.abs(deltaAngle) > 0.36 && r.speed > 280) {
         r.aiDriftTimer = 0.55;
       }
@@ -552,6 +703,7 @@ export class TurboDriftEngine {
       }
     }
 
+    r.braking = wantBrake;
     r.steer += (steerCmd - r.steer) * Math.min(1, dt * 14);
 
     // Stat scaling
@@ -561,7 +713,7 @@ export class TurboDriftEngine {
     const skillMult = r.isPlayer ? 1.0 : r.finished ? 0.65 : r.aiSkillMult;
     const boostMult = r.boostLeft > 0 ? 1.36 : 1.0;
 
-    // Check closest road segment in local window (safe for Figure-8)
+    // Closest road segment in local window (safe for Figure-8)
     let bestSeg = r.segIndex;
     let bestD2 = Infinity;
     for (let offset = -12; offset <= 18; offset++) {
@@ -582,6 +734,7 @@ export class TurboDriftEngine {
       r.lap += 1;
       if (r.isPlayer && r.lap >= 2 && r.lap <= this.track.def.laps) {
         racerSound.lap(r.lap === this.track.def.laps);
+        this.pushPopup(r.x, r.y - 34, r.lap === this.track.def.laps ? 'FINAL LAP!' : `LAP ${r.lap}!`, '#facc15');
       }
       if (r.lap > this.track.def.laps && !r.finished) {
         r.finished = true;
@@ -624,10 +777,12 @@ export class TurboDriftEngine {
       const bx = bp.x + bp.nx * (pad.lateralOffset * halfW);
       const by = bp.y + bp.ny * (pad.lateralOffset * halfW);
       if (Math.hypot(r.x - bx, r.y - by) < 38) {
-        if (r.boostLeft < 0.75) {
-          if (r.isPlayer) racerSound.boost(1.1);
+        if (r.boostLeft < 0.75 && r.isPlayer) {
+          racerSound.boost(1.1);
+          this.pushPopup(r.x, r.y - 34, 'PAD TURBO!', '#22d3ee');
         }
         r.boostLeft = Math.max(r.boostLeft, 0.95);
+        r.boostTier = Math.max(r.boostTier, 2) as 0 | 1 | 2 | 3;
         r.speed = Math.max(r.speed, baseMaxSpeed * 1.28);
       }
     }
@@ -635,7 +790,6 @@ export class TurboDriftEngine {
     // Rainbow skybridge fall-off vs guardrails
     if (distFromCenter > halfW + 14) {
       if (!this.track.def.hasGuardrails) {
-        // Fell off rainbow road! Drone respawn!
         if (distFromCenter > halfW + 46) {
           r.respawnTimer = 0.85;
           r.speed = 0;
@@ -643,7 +797,6 @@ export class TurboDriftEngine {
           return;
         }
       } else {
-        // Soft guardrail bounce back onto road
         const pt = pts[bestSeg];
         const rx = r.x - pt.x;
         const ry = r.y - pt.y;
@@ -668,7 +821,6 @@ export class TurboDriftEngine {
     } else {
       r.speed -= 160 * dt;
     }
-    // Drag toward cap
     if (r.speed > maxSpd) {
       r.speed -= (r.speed - maxSpd) * Math.min(1, dt * 4.5);
     }
@@ -683,16 +835,13 @@ export class TurboDriftEngine {
         r.driftCharge = 0;
         r.driftLevel = 0;
       }
-      // Counter-steering subtly adjusts arc while keeping drift going
       const driftTurnRate = (r.driftDir * 2.15 + steerCmd * 1.15) * driftBonusGrip;
       r.angle = normalizeAngle(r.angle + driftTurnRate * dt);
 
-      // Slip velocity lags behind nose angle -> real drift slide!
       const grip = onIce ? 2.4 : 4.2 * this.track.def.gripFactor;
       const targetVelAngle = r.angle - r.driftDir * 0.34;
       r.velAngle = normalizeAngle(r.velAngle + normalizeAngle(targetVelAngle - r.velAngle) * Math.min(1, dt * grip));
 
-      // Charge Mini-Turbo (Blue -> Orange -> Purple)
       const chargeSpeed = Math.abs(steerCmd) > 0.15 ? 1.18 : 0.75;
       r.driftCharge += dt * chargeSpeed;
       const prevLvl = r.driftLevel;
@@ -702,20 +851,25 @@ export class TurboDriftEngine {
 
       if (r.isPlayer && nextLvl > prevLvl && nextLvl !== 0) {
         racerSound.driftTier(nextLvl);
+        const label = nextLvl === 1 ? 'DRIFT x1!' : nextLvl === 2 ? 'DRIFT x2!' : 'ULTRA DRIFT x3!';
+        const col = nextLvl === 1 ? '#38bdf8' : nextLvl === 2 ? '#fb923c' : '#e879f9';
+        this.pushPopup(r.x, r.y - 30, label, col);
       }
 
-      // Emit drift sparks & skidmarks
       this.emitDriftEffects(r);
     } else {
       if (r.drifting) {
-        // Release Mini-Turbo boost!
         if (r.driftLevel > 0) {
           const boostDur = r.driftLevel === 1 ? 0.55 : r.driftLevel === 2 ? 0.95 : 1.45;
           r.boostLeft = Math.max(r.boostLeft, boostDur);
+          r.boostTier = Math.max(r.boostTier, r.driftLevel) as 0 | 1 | 2 | 3;
           r.speed = Math.max(r.speed, baseMaxSpeed * (1.14 + r.driftLevel * 0.08));
           if (r.isPlayer) {
             racerSound.boost(0.9 + r.driftLevel * 0.15);
             this.shake = Math.max(this.shake, 2 + r.driftLevel * 1.2);
+            const tLabel = r.driftLevel === 3 ? 'ULTRA TURBO!' : r.driftLevel === 2 ? 'SUPER TURBO!' : 'TURBO!';
+            const tCol = r.driftLevel === 3 ? '#e879f9' : r.driftLevel === 2 ? '#fb923c' : '#38bdf8';
+            this.pushPopup(r.x, r.y - 34, tLabel, tCol);
           }
         }
         r.drifting = false;
@@ -725,7 +879,6 @@ export class TurboDriftEngine {
       }
       r.hasPrevSkid = false;
 
-      // Normal snappy arcade steering
       const speedTurnScale = Math.min(1, Math.abs(r.speed) / 140);
       const turnRate = steerCmd * 2.75 * speedTurnScale * (r.speed >= 0 ? 1 : -1);
       r.angle = normalizeAngle(r.angle + turnRate * dt);
@@ -754,7 +907,7 @@ export class TurboDriftEngine {
             : r.driftLevel === 1
               ? '#38bdf8'
               : '#0f172a';
-      const alpha = r.driftLevel > 0 ? 0.55 : 0.35;
+      const alpha = r.driftLevel > 0 ? 0.58 : 0.36;
       this.skidMarks.push({ x1: r.prevRearLX, y1: r.prevRearLY, x2: rlx, y2: rly, color: skidColor, alpha });
       this.skidMarks.push({ x1: r.prevRearRX, y1: r.prevRearRY, x2: rrx, y2: rry, color: skidColor, alpha });
     }
@@ -764,7 +917,25 @@ export class TurboDriftEngine {
     r.prevRearRY = rry;
     r.hasPrevSkid = true;
 
-    if (r.driftLevel > 0 && Math.random() < 0.65) {
+    // Tire smoke plumes
+    if (this.particles.length < 165 && Math.random() < 0.55) {
+      const sx = Math.random() < 0.5 ? rlx : rrx;
+      const sy = Math.random() < 0.5 ? rly : rry;
+      this.particles.push({
+        x: sx,
+        y: sy,
+        vx: -Math.cos(r.angle) * 35 + (Math.random() - 0.5) * 30,
+        vy: -Math.sin(r.angle) * 35 + (Math.random() - 0.5) * 30,
+        life: 0.42,
+        maxLife: 0.42,
+        color: this.track.def.theme === 'ice' ? '#e0f2fe' : '#cbd5e1',
+        size: 5 + Math.random() * 4,
+        isSmoke: true,
+      });
+    }
+
+    // Mini-turbo sparks
+    if (r.driftLevel > 0 && this.particles.length < 175 && Math.random() < 0.7) {
       const sparkColor =
         r.driftLevel === 3 ? '#e879f9' : r.driftLevel === 2 ? '#fb923c' : '#38bdf8';
       const rearX = (rlx + rrx) * 0.5;
@@ -772,12 +943,13 @@ export class TurboDriftEngine {
       this.particles.push({
         x: rearX,
         y: rearY,
-        vx: -Math.cos(r.angle) * 90 + (Math.random() - 0.5) * 90,
-        vy: -Math.sin(r.angle) * 90 + (Math.random() - 0.5) * 90,
+        vx: -Math.cos(r.angle) * 95 + (Math.random() - 0.5) * 95,
+        vy: -Math.sin(r.angle) * 95 + (Math.random() - 0.5) * 95,
         life: 0.28,
         maxLife: 0.28,
         color: sparkColor,
         size: 3 + r.driftLevel * 1.2,
+        isSmoke: false,
       });
     }
   }
@@ -834,17 +1006,13 @@ export class TurboDriftEngine {
   }
 
   private render(): void {
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = Math.max(320, Math.round(rect.width));
-    const h = Math.max(320, Math.round(rect.height));
-    if (this.canvas.width !== w * dpr || this.canvas.height !== h * dpr) {
-      this.canvas.width = w * dpr;
-      this.canvas.height = h * dpr;
-    }
+    this.syncCanvasMetrics();
+    if (this.cssW < 2 || this.cssH < 2) return;
 
+    const w = this.cssW;
+    const h = this.cssH;
     const ctx = this.ctx;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
     // Fill outer background
     ctx.fillStyle = this.track.def.bgColor;
@@ -862,7 +1030,7 @@ export class TurboDriftEngine {
     ctx.scale(finalZoom, finalZoom);
     ctx.translate(-this.camX, -this.camY);
 
-    // Draw cached static track canvas
+    // 1. Cached static track canvas
     const b = this.track.bounds;
     ctx.drawImage(
       this.staticTrackCanvas,
@@ -872,11 +1040,14 @@ export class TurboDriftEngine {
       b.maxY - b.minY
     );
 
-    // Skid marks
+    // 2. Animated trackside environment & start gantry lights
+    this.drawAnimatedTrackProps(ctx);
+
+    // 3. Fading skid marks
+    ctx.lineWidth = 4;
     for (const s of this.skidMarks) {
       ctx.strokeStyle = s.color;
       ctx.globalAlpha = s.alpha;
-      ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.moveTo(s.x1, s.y1);
       ctx.lineTo(s.x2, s.y2);
@@ -884,24 +1055,25 @@ export class TurboDriftEngine {
     }
     ctx.globalAlpha = 1;
 
-    // Sparks / particles
+    // 4. Tire smoke & drift sparks
     for (const pt of this.particles) {
+      const ratio = Math.max(0, pt.life / pt.maxLife);
       ctx.fillStyle = pt.color;
-      ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+      ctx.globalAlpha = pt.isSmoke ? ratio * 0.45 : ratio;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // Draw all racers + name tags
+    // 5. All racers + name tags
     for (const r of this.racers) {
       if (r.respawnTimer > 0 && Math.floor(r.respawnTimer * 12) % 2 === 0) continue;
       const car = getCarById(r.carId);
       const driver = getDriverById(r.driverId);
 
       // Soft drop shadow under car
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillStyle = 'rgba(0,0,0,0.38)';
       ctx.beginPath();
       ctx.ellipse(r.x + 3, r.y + 4, 23, 12, r.angle, 0, Math.PI * 2);
       ctx.fill();
@@ -917,7 +1089,9 @@ export class TurboDriftEngine {
         r.driftLevel,
         r.boostLeft,
         1.05,
-        1
+        1,
+        r.boostTier,
+        r.braking
       );
 
       // Racer name pill above car
@@ -930,39 +1104,48 @@ export class TurboDriftEngine {
       ctx.fillText(r.name, r.x, r.y - 24);
     }
 
-    // Special Spookkasteel Bos darkness + real headlight cones!
-    if (this.track.def.hasHeadlights) {
-      ctx.save();
-      // Draw darkness overlay over viewport world area using even-odd cutout cones?
-      // Simpler & super clean: screen-space radial gradient + headlight cones!
-      ctx.restore();
+    // 6. Overhead Checkered Start/Finish Banner spanning gantry towers
+    this.drawOverheadStartBanner(ctx);
+
+    // 7. Floating DRIFT / TURBO popups
+    for (const pop of this.popups) {
+      const alpha = Math.max(0, Math.min(1, pop.life / pop.maxLife));
+      ctx.globalAlpha = alpha;
+      ctx.font = '900 14px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#020617';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(pop.text, pop.x, pop.y);
+      ctx.fillStyle = pop.color;
+      ctx.fillText(pop.text, pop.x, pop.y);
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
 
-    // If Spookbos, draw darkness + warm headlight beams in screen space
+    // 8. Screen-space Speed Lines when boosting!
+    const player = this.getPlayer();
+    if (player.boostLeft > 0 || player.speed > 510) {
+      this.drawSpeedLines(ctx, w, h, player.boostLeft > 0 ? 0.34 : 0.14, player.boostTier);
+    }
+
+    // 9. Haunted Castle Woods darkness + real headlight cones
     if (this.track.def.hasHeadlights) {
       ctx.save();
-      // Create temporary dark veil via composite or gradient cutouts?
-      // 'destination-out' on a scratch layer would affect canvas underneath; instead fill ambient night with radial glow around screen center + forward cone!
       ctx.fillStyle = 'rgba(2, 4, 14, 0.72)';
       ctx.beginPath();
       ctx.rect(0, 0, w, h);
 
-      // Cut out bright area around player + forward cone using evenodd!
-      const p = this.getPlayer();
-      const px = w * 0.5 + (p.x - this.camX) * finalZoom + shakeX;
-      const py = h * 0.55 + (p.y - this.camY) * finalZoom + shakeY;
+      const px = w * 0.5 + (player.x - this.camX) * finalZoom + shakeX;
+      const py = h * 0.55 + (player.y - this.camY) * finalZoom + shakeY;
 
-      // Ambient halo around car
       ctx.moveTo(px + 95, py);
       ctx.arc(px, py, 95, 0, Math.PI * 2, true);
 
-      // Long headlight beam forward
       const beamLen = 380 * finalZoom;
       const spread = 0.42;
-      const a1 = p.angle - spread;
-      const a2 = p.angle + spread;
+      const a1 = player.angle - spread;
+      const a2 = player.angle + spread;
       ctx.moveTo(px, py);
       ctx.lineTo(px + Math.cos(a2) * beamLen, py + Math.sin(a2) * beamLen);
       ctx.lineTo(px + Math.cos(a1) * beamLen, py + Math.sin(a1) * beamLen);
@@ -972,14 +1155,134 @@ export class TurboDriftEngine {
       ctx.restore();
     }
 
-    // Minimap in top-right below HUD
-    this.renderMinimap(ctx, w);
+    // 10. Minimap in top-right below HUD (zero overlap)
+    this.renderMinimap(ctx, w, h);
   }
 
-  private cachedMinimapTop = 56;
-  private lastMinimapMeasure = 0;
+  private drawAnimatedTrackProps(ctx: CanvasRenderingContext2D): void {
+    const theme = this.track.def.theme;
+    const halfW = this.track.def.roadWidth * 0.5;
+    const pts = this.track.points;
 
-  private getMinimapTop(): number {
+    // Animated boost pad pulse glow
+    const padPulse = 0.5 + Math.sin(this.animTime * 8) * 0.35;
+    for (const pad of this.track.boostPads) {
+      const bp = pts[pad.segmentIndex];
+      const bx = bp.x + bp.nx * (pad.lateralOffset * halfW);
+      const by = bp.y + bp.ny * (pad.lateralOffset * halfW);
+      ctx.fillStyle = `rgba(34, 211, 238, ${(padPulse * 0.25).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(bx, by, 28, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Animated volcano lava / neon beacons / ice snow / space stars / spooky wisps
+    for (const m of this.ambientMotes) {
+      const shimmer = 0.45 + Math.sin(this.animTime * 4 + m.phase) * 0.35;
+      ctx.globalAlpha = shimmer;
+      if (theme === 'volcano') {
+        ctx.fillStyle = '#fb923c';
+      } else if (theme === 'ice') {
+        ctx.fillStyle = '#e0f2fe';
+      } else if (theme === 'neon') {
+        ctx.fillStyle = m.phase > Math.PI ? '#22d3ee' : '#ec4899';
+      } else if (theme === 'rainbow') {
+        ctx.fillStyle = m.phase > Math.PI ? '#fde047' : '#c084fc';
+      } else if (theme === 'spooky') {
+        ctx.fillStyle = '#a855f7';
+      } else if (theme === 'desert') {
+        ctx.fillStyle = '#fde68a';
+      } else {
+        ctx.fillStyle = '#bbf7d0';
+      }
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private drawOverheadStartBanner(ctx: CanvasRenderingContext2D): void {
+    const sp = this.track.points[0];
+    const halfW = this.track.def.roadWidth * 0.5;
+
+    ctx.save();
+    ctx.translate(sp.x, sp.y);
+    ctx.rotate(Math.atan2(sp.ty, sp.tx));
+
+    // Checkered gantry bridge banner
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(-10, -halfW - 18, 20, this.track.def.roadWidth + 36);
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-10, -halfW - 18, 20, this.track.def.roadWidth + 36);
+
+    // Mini checkered banner strip on gantry
+    const strips = 10;
+    const sh = (this.track.def.roadWidth + 20) / strips;
+    for (let i = 0; i < strips; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#f8fafc' : '#1e293b';
+      ctx.fillRect(-4, -halfW - 10 + i * sh, 8, sh);
+    }
+
+    // Stadium floodlight glow cones at gantry towers
+    for (const side of [-1, 1]) {
+      const gy = side * (halfW + 18);
+      ctx.fillStyle = 'rgba(254, 249, 195, 0.14)';
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(-42, gy - side * 70);
+      ctx.lineTo(42, gy - side * 70);
+      ctx.closePath();
+      ctx.fill();
+
+      // Countdown / Race light pod
+      const lightColor =
+        this.countdownTimer > 1.2
+          ? '#ef4444'
+          : this.countdownTimer > 0.05
+            ? '#facc15'
+            : '#22c55e';
+      ctx.fillStyle = lightColor;
+      ctx.beginPath();
+      ctx.arc(0, gy, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  private drawSpeedLines(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    alpha: number,
+    tier: 0 | 1 | 2 | 3
+  ): void {
+    const cx = w * 0.5;
+    const cy = h * 0.55;
+    const maxR = Math.hypot(w, h) * 0.55;
+    const minR = Math.min(w, h) * 0.34;
+
+    ctx.save();
+    ctx.strokeStyle =
+      tier === 3 ? '#f5d0fe' : tier === 2 ? '#fed7aa' : tier === 1 ? '#bae6fd' : '#ffffff';
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 2;
+
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + Math.sin(this.animTime * 22 + i) * 0.08;
+      const r0 = minR + ((i * 37 + Math.floor(this.animTime * 40)) % 45);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+      ctx.lineTo(cx + Math.cos(a) * maxR, cy + Math.sin(a) * maxR);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private getMinimapTop(viewH: number, mapSize: number): number {
     const now = performance.now();
     if (now - this.lastMinimapMeasure > 400) {
       this.lastMinimapMeasure = now;
@@ -987,21 +1290,21 @@ export class TurboDriftEngine {
       const safeTop = Number.parseFloat(safeTopStr) || 0;
       const hudEl = document.querySelector('.race-hud-top');
       const hudBottom = hudEl ? hudEl.getBoundingClientRect().bottom : 0;
-      this.cachedMinimapTop = Math.max(safeTop + 56, hudBottom > 0 ? Math.ceil(hudBottom + 8) : 56);
+      this.cachedMinimapTop = Math.max(safeTop + 52, hudBottom > 0 ? Math.ceil(hudBottom + 8) : 52);
     }
-    return this.cachedMinimapTop;
+    return Math.min(this.cachedMinimapTop, Math.max(44, viewH - mapSize - 110));
   }
 
-  private renderMinimap(ctx: CanvasRenderingContext2D, viewW: number): void {
-    const mapSize = viewW < 400 ? 74 : 86;
+  private renderMinimap(ctx: CanvasRenderingContext2D, viewW: number, viewH: number): void {
+    const mapSize = viewW < 400 || viewH < 460 ? 68 : 84;
     const mx = viewW - mapSize - 10;
-    const my = this.getMinimapTop();
+    const my = this.getMinimapTop(viewH, mapSize);
     const b = this.track.bounds;
     const span = Math.max(b.maxX - b.minX, b.maxY - b.minY);
     const s = (mapSize - 14) / span;
 
     ctx.save();
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.72)';
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.74)';
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
     ctx.lineWidth = 1.2;
     ctx.beginPath();

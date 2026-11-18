@@ -407,7 +407,9 @@ export function drawCarWithDriver(
   driftLevel: 0 | 1 | 2 | 3 = 0,
   boostLeft = 0,
   scale = 1,
-  alpha = 1
+  alpha = 1,
+  boostTier: 0 | 1 | 2 | 3 = 0,
+  braking = false
 ): void {
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -419,40 +421,56 @@ export function drawCarWithDriver(
   if (driftLevel > 0 || boostLeft > 0) {
     const auraColor =
       boostLeft > 0
-        ? '#f97316'
+        ? boostTier === 3
+          ? '#c084fc'
+          : boostTier === 2
+            ? '#fb923c'
+            : boostTier === 1
+              ? '#38bdf8'
+              : '#facc15'
         : driftLevel === 3
           ? '#c084fc'
           : driftLevel === 2
             ? '#fb923c'
             : '#38bdf8';
     ctx.fillStyle = auraColor;
-    ctx.globalAlpha = alpha * 0.25;
+    ctx.globalAlpha = alpha * 0.28;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 29, 17, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 31, 18, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = alpha;
   }
 
-  // Turbo exhaust flames
+  // Tiered Turbo Exhaust Flames (Blue -> Orange -> Purple -> Gold Pad)
   if (boostLeft > 0) {
-    const flameLen = 14 + Math.random() * 11;
-    ctx.fillStyle = '#f97316';
+    const outerFlame =
+      boostTier === 3
+        ? '#a855f7'
+        : boostTier === 2
+          ? '#f97316'
+          : boostTier === 1
+            ? '#0ea5e9'
+            : '#f59e0b';
+    const innerFlame =
+      boostTier === 3 ? '#f5d0fe' : boostTier === 1 ? '#e0f2fe' : '#fef08a';
+    const flameLen = (boostTier === 3 ? 20 : boostTier === 2 ? 17 : 14) + Math.random() * 11;
+    ctx.fillStyle = outerFlame;
     ctx.beginPath();
-    ctx.moveTo(-22, -5);
-    ctx.lineTo(-22 - flameLen, -3);
-    ctx.lineTo(-22, -1);
-    ctx.moveTo(-22, 1);
-    ctx.lineTo(-22 - flameLen, 3);
-    ctx.lineTo(-22, 5);
+    ctx.moveTo(-21, -6);
+    ctx.lineTo(-21 - flameLen, -3.5);
+    ctx.lineTo(-21, -1);
+    ctx.moveTo(-21, 1);
+    ctx.lineTo(-21 - flameLen, 3.5);
+    ctx.lineTo(-21, 6);
     ctx.fill();
-    ctx.fillStyle = '#fef08a';
+    ctx.fillStyle = innerFlame;
     ctx.beginPath();
-    ctx.moveTo(-22, -4);
-    ctx.lineTo(-22 - flameLen * 0.55, -3);
-    ctx.lineTo(-22, -2);
-    ctx.moveTo(-22, 2);
-    ctx.lineTo(-22 - flameLen * 0.55, 3);
-    ctx.lineTo(-22, 4);
+    ctx.moveTo(-21, -4.5);
+    ctx.lineTo(-21 - flameLen * 0.58, -3.5);
+    ctx.lineTo(-21, -2.2);
+    ctx.moveTo(-21, 2.2);
+    ctx.lineTo(-21 - flameLen * 0.58, 3.5);
+    ctx.lineTo(-21, 4.5);
     ctx.fill();
   }
 
@@ -502,10 +520,9 @@ export function drawCarWithDriver(
 
   switch (car.chassis) {
     case 'f1': {
-      // Narrow nose cone + wide front wing + rear wing + sidepods
       ctx.fillStyle = car.accent;
-      ctx.fillRect(18, -11, 5, 22); // front wing
-      ctx.fillRect(-23, -10.5, 5, 21); // rear wing
+      ctx.fillRect(18, -11, 5, 22);
+      ctx.fillRect(-23, -10.5, 5, 21);
       ctx.fillStyle = car.primary;
       ctx.beginPath();
       ctx.moveTo(22, -2.5);
@@ -533,7 +550,6 @@ export function drawCarWithDriver(
       ctx.beginPath();
       ctx.ellipse(0, 0, 14, 11.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Lights around saucer
       ctx.fillStyle = car.accent;
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
@@ -548,7 +564,7 @@ export function drawCarWithDriver(
       ctx.fillRect(-18, -10, 36, 20);
       ctx.strokeRect(-18, -10, 36, 20);
       ctx.fillStyle = car.accent;
-      ctx.fillRect(4, -2.2, 20, 4.4); // cannon barrel
+      ctx.fillRect(4, -2.2, 20, 4.4);
       ctx.strokeRect(4, -2.2, 20, 4.4);
       ctx.fillStyle = car.secondary;
       ctx.beginPath();
@@ -559,7 +575,6 @@ export function drawCarWithDriver(
     }
     case 'kart':
     case 'buggy': {
-      // Open tubular frame + front bumper
       ctx.fillStyle = car.primary;
       ctx.beginPath();
       ctx.roundRect(-17, -9, 34, 18, 6);
@@ -570,7 +585,6 @@ export function drawCarWithDriver(
       break;
     }
     case 'hotrod': {
-      // Narrow front hood with exposed engine + wide rear
       ctx.fillStyle = car.primary;
       ctx.beginPath();
       ctx.moveTo(22, -5.5);
@@ -584,7 +598,6 @@ export function drawCarWithDriver(
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      // Chrome engine block on hood
       ctx.fillStyle = '#e2e8f0';
       ctx.fillRect(7, -3.5, 9, 7);
       ctx.fillStyle = car.accent;
@@ -592,7 +605,6 @@ export function drawCarWithDriver(
       break;
     }
     case 'cyberpod': {
-      // Sharp wedge
       ctx.fillStyle = car.primary;
       ctx.beginPath();
       ctx.moveTo(24, 0);
@@ -621,31 +633,27 @@ export function drawCarWithDriver(
       ctx.stroke();
       ctx.fillStyle = car.secondary;
       if (car.chassis === 'pickup') {
-        ctx.fillRect(-19, -8, 12, 16); // truck bed
+        ctx.fillRect(-19, -8, 12, 16);
       } else {
-        ctx.fillRect(-18, -3.5, 36, 7); // racing stripe
+        ctx.fillRect(-18, -3.5, 36, 7);
       }
       ctx.fillStyle = car.accent;
-      ctx.fillRect(10, -8.5, 4, 17); // windshield
+      ctx.fillRect(10, -8.5, 4, 17);
       break;
     }
     default: {
-      // supercar, muscle, rally, monster, driftcoupe
       ctx.fillStyle = car.primary;
       ctx.beginPath();
       ctx.roundRect(-22, -10.5, 45, 21, 7);
       ctx.fill();
       ctx.stroke();
-      // Racing stripes
       ctx.fillStyle = car.secondary;
       ctx.fillRect(-19, -3.6, 39, 2.5);
       ctx.fillRect(-19, 1.1, 39, 2.5);
-      // Windshield
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
       ctx.roundRect(4, -7.8, 7, 15.6, 2);
       ctx.fill();
-      // Spoiler for supercar/driftcoupe/rally
       if (car.chassis === 'supercar' || car.chassis === 'driftcoupe' || car.chassis === 'rally') {
         ctx.fillStyle = car.accent;
         ctx.fillRect(-23.5, -10, 4.5, 20);
@@ -653,6 +661,16 @@ export function drawCarWithDriver(
       break;
     }
   }
+
+  // Glossy metallic body highlight across hood/roof
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.beginPath();
+  ctx.moveTo(-14, -7.5);
+  ctx.lineTo(15, -5.5);
+  ctx.lineTo(11, -1.5);
+  ctx.lineTo(-16, -4);
+  ctx.closePath();
+  ctx.fill();
 
   // Open cockpit well so driver stands out crisply
   ctx.fillStyle = '#020617';
@@ -663,10 +681,34 @@ export function drawCarWithDriver(
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Headlights
+  // Headlights + subtle forward beam glint
   ctx.fillStyle = '#fef08a';
-  ctx.fillRect(20, -8, 2.5, 3.5);
-  ctx.fillRect(20, 4.5, 2.5, 3.5);
+  ctx.fillRect(20, -8, 2.6, 3.6);
+  ctx.fillRect(20, 4.4, 2.6, 3.6);
+  ctx.fillStyle = 'rgba(254, 240, 138, 0.16)';
+  ctx.beginPath();
+  ctx.moveTo(22.5, -7.5);
+  ctx.lineTo(36, -11);
+  ctx.lineTo(36, -3);
+  ctx.closePath();
+  ctx.moveTo(22.5, 7.5);
+  ctx.lineTo(36, 11);
+  ctx.lineTo(36, 3);
+  ctx.closePath();
+  ctx.fill();
+
+  // Taillights (glow brighter when braking or drifting)
+  const tailHot = braking || driftLevel > 0;
+  ctx.fillStyle = tailHot ? '#ff2a4b' : '#dc2626';
+  ctx.fillRect(-22, -8, 2.2, 3.5);
+  ctx.fillRect(-22, 4.5, 2.2, 3.5);
+  if (tailHot) {
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.beginPath();
+    ctx.arc(-22.5, -6.2, 4.5, 0, Math.PI * 2);
+    ctx.arc(-22.5, 6.2, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // Driver inside cockpit leaning with steering!
   drawDriverAvatar(ctx, driver, -2.5, 0, 0.92, steer);

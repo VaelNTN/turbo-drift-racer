@@ -73,7 +73,8 @@ export function setPlayerName(name: string): void {
 
 export function getSelectedCarId(): number {
   try {
-    return Number(localStorage.getItem(KEY_CAR) || 0) || 0;
+    const v = Number(localStorage.getItem(KEY_CAR) || 0);
+    return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
   } catch {
     return 0;
   }
@@ -89,7 +90,8 @@ export function setSelectedCarId(id: number): void {
 
 export function getSelectedDriverId(): number {
   try {
-    return Number(localStorage.getItem(KEY_DRIVER) || 0) || 0;
+    const v = Number(localStorage.getItem(KEY_DRIVER) || 0);
+    return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
   } catch {
     return 0;
   }
@@ -176,13 +178,23 @@ export function setApiUrl(url: string): void {
 export function getLocalBestTimes(): Record<string, number> {
   try {
     const raw = localStorage.getItem(KEY_BESTS);
-    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const clean: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+        clean[k] = Math.round(v);
+      }
+    }
+    return clean;
   } catch {
     return {};
   }
 }
 
 export function saveLocalBestTime(trackId: string, timeMs: number): boolean {
+  if (!Number.isFinite(timeMs) || timeMs <= 0) return false;
   const bests = getLocalBestTimes();
   const prev = bests[trackId];
   if (!prev || timeMs < prev) {

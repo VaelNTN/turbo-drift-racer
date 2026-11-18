@@ -448,24 +448,89 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
   ctx.scale(pixelScale, pixelScale);
   ctx.translate(-bounds.minX, -bounds.minY);
 
-  // Background terrain
+  // 1. Background terrain
   ctx.fillStyle = def.bgColor;
   ctx.fillRect(bounds.minX, bounds.minY, w, h);
 
-  // Decorative background grid / stars / terrain blobs
-  ctx.fillStyle = def.bgAccent;
-  for (let gx = Math.floor(bounds.minX / 180) * 180; gx < bounds.maxX; gx += 180) {
-    for (let gy = Math.floor(bounds.minY / 180) * 180; gy < bounds.maxY; gy += 180) {
+  // Theme-specific rich static terrain props
+  for (let gx = Math.floor(bounds.minX / 170) * 170; gx < bounds.maxX; gx += 170) {
+    for (let gy = Math.floor(bounds.minY / 170) * 170; gy < bounds.maxY; gy += 170) {
+      const seed = Math.abs(Math.sin(gx * 0.013 + gy * 0.037));
+      const px = gx + 45 + seed * 70;
+      const py = gy + 45 + ((seed * 17) % 1) * 70;
+
       if (def.theme === 'rainbow') {
-        ctx.fillStyle = '#fde047';
-        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = seed > 0.5 ? '#fde047' : '#38bdf8';
+        ctx.globalAlpha = 0.32;
         ctx.beginPath();
-        ctx.arc(gx + ((gy * 17) % 90), gy + ((gx * 13) % 90), 2.5, 0, Math.PI * 2);
+        ctx.arc(px, py, 2.8, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
-      } else {
+      } else if (def.theme === 'neon') {
+        // Cyber grid & rooftop pads
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(gx, gy, 170, 170);
+        if (seed > 0.45) {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(px - 22, py - 22, 44, 44);
+          ctx.strokeStyle = seed > 0.72 ? '#ec4899' : '#22d3ee';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(px - 22, py - 22, 44, 44);
+        }
+      } else if (def.theme === 'classic') {
+        // Lush trees & bushes
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.25)';
         ctx.beginPath();
-        ctx.arc(gx + 60, gy + 60, 26, 0, Math.PI * 2);
+        ctx.arc(px + 4, py + 5, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = seed > 0.5 ? '#166534' : '#14532d';
+        ctx.beginPath();
+        ctx.arc(px, py, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#22c55e';
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(px - 5, py - 5, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (def.theme === 'desert') {
+        // Sandstone rocks & cacti
+        ctx.fillStyle = def.bgAccent;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 28, 16, seed * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+        if (seed > 0.55) {
+          ctx.fillStyle = '#15803d';
+          ctx.beginPath();
+          ctx.arc(px, py, 7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (def.theme === 'ice') {
+        // Snowdrifts & faceted icebergs
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.22)';
+        ctx.beginPath();
+        ctx.moveTo(px, py - 22);
+        ctx.lineTo(px + 20, py + 14);
+        ctx.lineTo(px - 22, py + 10);
+        ctx.closePath();
+        ctx.fill();
+      } else if (def.theme === 'volcano') {
+        // Obsidian boulders & lava cracks
+        ctx.fillStyle = '#1c1917';
+        ctx.beginPath();
+        ctx.arc(px, py, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(249, 115, 22, 0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px - 30, py);
+        ctx.lineTo(px + 28, py + 14);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = def.bgAccent;
+        ctx.beginPath();
+        ctx.arc(px, py, 24, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -474,7 +539,7 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
   // Lava glow pools around volcano outside track
   if (def.theme === 'volcano') {
     ctx.fillStyle = '#ea580c';
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.4;
     for (let i = 0; i < 16; i++) {
       const lx = bounds.minX + ((i * 743) % w);
       const ly = bounds.minY + ((i * 521) % h);
@@ -497,14 +562,14 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // Outer guardrail shadow / rim
+  // 2. Outer guardrail shadow / painted apex curbs
   if (def.hasGuardrails) {
     traceCenterPath();
     ctx.strokeStyle = '#020617';
-    ctx.lineWidth = def.roadWidth + 34;
+    ctx.lineWidth = def.roadWidth + 36;
     ctx.stroke();
 
-    // Alternating curbs using dashed stroke
+    // Alternating red/white or theme-colored curbs
     traceCenterPath();
     ctx.strokeStyle = def.curbA;
     ctx.lineWidth = def.roadWidth + 24;
@@ -517,18 +582,16 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
     ctx.stroke();
     ctx.setLineDash([]);
   } else {
-    // Rainbow aura edge
     traceCenterPath();
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = def.roadWidth + 14;
     ctx.stroke();
   }
 
-  // Main road surface
+  // 3. Main textured asphalt / rainbow road surface
   if (def.theme === 'rainbow') {
     const colors = ['#ef4444', '#f97316', '#facc15', '#22c55e', '#38bdf8', '#a855f7'];
     const stripeW = def.roadWidth / colors.length;
-    // Draw layered strokes widest to narrowest or colored segments along spline
     for (let i = 0; i < points.length; i++) {
       const p1 = points[i];
       const p2 = points[(i + 1) % points.length];
@@ -547,19 +610,56 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
     ctx.strokeStyle = def.roadColor;
     ctx.lineWidth = def.roadWidth;
     ctx.stroke();
+
+    // Subtle darker inner racing groove
+    traceCenterPath();
+    ctx.strokeStyle = 'rgba(2, 6, 23, 0.16)';
+    ctx.lineWidth = def.roadWidth * 0.62;
+    ctx.stroke();
+
+    // Asphalt grain / aggregate speckles along road
+    const halfRoad = def.roadWidth * 0.42;
+    for (let i = 0; i < points.length; i++) {
+      const pt = points[i];
+      for (let k = 0; k < 5; k++) {
+        const r = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+        const frac = (r - Math.floor(r)) * 2 - 1;
+        const sx = pt.x + pt.nx * frac * halfRoad;
+        const sy = pt.y + pt.ny * frac * halfRoad;
+        ctx.fillStyle = k % 2 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.12)';
+        ctx.fillRect(sx, sy, 3, 3);
+      }
+    }
+  }
+
+  // Crisp road shoulder border lines
+  for (const side of [-1, 1]) {
+    const offEdge = side * (def.roadWidth * 0.48);
+    ctx.beginPath();
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const ex = p.x + p.nx * offEdge;
+      const ey = p.y + p.ny * offEdge;
+      if (i === 0) ctx.moveTo(ex, ey);
+      else ctx.lineTo(ex, ey);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
   }
 
   // Center dashed line
   traceCenterPath();
   ctx.strokeStyle = def.lineColor;
-  ctx.globalAlpha = 0.5;
+  ctx.globalAlpha = 0.55;
   ctx.lineWidth = 4;
   ctx.setLineDash([24, 26]);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
 
-  // Start / Finish Checkered Line at point[0]
+  // 4. Start / Finish Checkered Line + Gantry Pillars + Stadium Light Towers
   const sp = points[0];
   ctx.save();
   ctx.translate(sp.x, sp.y);
@@ -575,9 +675,22 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
       ctx.fillRect(-cellW + c * cellW, -halfW + r * cellH, cellW, cellH);
     }
   }
+  // Gantry side towers & overhead shadow bar
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.38)';
+  ctx.fillRect(-8, -halfW - 14, 16, def.roadWidth + 28);
+  for (const side of [-1, 1]) {
+    const py = side * (halfW + 18);
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(0, py, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
   ctx.restore();
 
-  // Hazards
+  // 5. Hazards
   for (const haz of track.hazards) {
     const hp = points[haz.segmentIndex];
     const hx = hp.x + hp.nx * (haz.lateralOffset * halfW);
@@ -601,7 +714,7 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
     ctx.restore();
   }
 
-  // Boost pads
+  // 6. Boost pads
   for (const pad of track.boostPads) {
     const bp = points[pad.segmentIndex];
     const bx = bp.x + bp.nx * (pad.lateralOffset * halfW);
@@ -614,7 +727,6 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
     ctx.strokeStyle = '#22d3ee';
     ctx.lineWidth = 2.5;
     ctx.strokeRect(-26, -18, 52, 36);
-    // Chevrons
     ctx.strokeStyle = '#facc15';
     ctx.lineWidth = 4;
     for (let ch = -12; ch <= 12; ch += 12) {

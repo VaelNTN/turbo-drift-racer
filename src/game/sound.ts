@@ -1,6 +1,8 @@
 class RacerSoundFx {
   private ctx: AudioContext | null = null;
   private muted = false;
+  private lastAt: Record<string, number> = {};
+  private timers = new Set<number>();
 
   constructor() {
     try {
@@ -21,6 +23,29 @@ class RacerSoundFx {
       void this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  private canPlay(key: string, minMs: number): boolean {
+    const now = performance.now();
+    const prev = this.lastAt[key] ?? 0;
+    if (now - prev < minMs) return false;
+    this.lastAt[key] = now;
+    return true;
+  }
+
+  private schedule(fn: () => void, ms: number): void {
+    const id = window.setTimeout(() => {
+      this.timers.delete(id);
+      fn();
+    }, ms);
+    this.timers.add(id);
+  }
+
+  clearPending(): void {
+    for (const id of this.timers) {
+      window.clearTimeout(id);
+    }
+    this.timers.clear();
   }
 
   isMuted(): boolean {
@@ -55,6 +80,7 @@ class RacerSoundFx {
   }
 
   click(): void {
+    if (!this.canPlay('click', 40)) return;
     this.tone(540, 720, 0.06, 'triangle', 0.05);
   }
 
@@ -67,27 +93,30 @@ class RacerSoundFx {
   }
 
   driftTier(level: 1 | 2 | 3): void {
+    if (!this.canPlay('drift', 80)) return;
     const base = level === 1 ? 520 : level === 2 ? 700 : 940;
     this.tone(base, base * 1.25, 0.09, 'sine', 0.07);
   }
 
   boost(power = 1): void {
+    if (!this.canPlay('boost', 120)) return;
     this.tone(240 * power, 680 * power, 0.24, 'sawtooth', 0.08);
   }
 
   bump(): void {
+    if (!this.canPlay('bump', 120)) return;
     this.tone(130, 55, 0.11, 'square', 0.07);
   }
 
   lap(finalLap: boolean): void {
     this.tone(523, 659, 0.12, 'triangle', 0.08);
-    setTimeout(() => this.tone(finalLap ? 880 : 784, finalLap ? 1046 : 880, 0.18, 'triangle', 0.08), 100);
+    this.schedule(() => this.tone(finalLap ? 880 : 784, finalLap ? 1046 : 880, 0.18, 'triangle', 0.08), 100);
   }
 
   finish(win: boolean): void {
     const notes = win ? [523, 659, 784, 1046] : [440, 523, 587];
     notes.forEach((f, i) => {
-      setTimeout(() => this.tone(f, f * 1.03, 0.16, 'triangle', 0.08), i * 95);
+      this.schedule(() => this.tone(f, f * 1.03, 0.16, 'triangle', 0.08), i * 95);
     });
   }
 }

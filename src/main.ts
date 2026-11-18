@@ -513,7 +513,13 @@ function renderGarage(): void {
   });
 }
 
+let raceCleanup: (() => void) | null = null;
+
 function stopEngine(): void {
+  if (raceCleanup) {
+    raceCleanup();
+    raceCleanup = null;
+  }
   if (engine) {
     engine.destroy();
     engine = null;
@@ -646,6 +652,8 @@ function startRace(): void {
   );
   engine.start();
 
+  const clearHolders: Array<() => void> = [];
+
   // Touch helper using pointer events (supports simultaneous left/right + drift thumbs!)
   const bindHold = (elId: string, key: 'left' | 'right' | 'gas' | 'brake' | 'drift'): void => {
     const btn = document.getElementById(elId);
@@ -656,18 +664,32 @@ function startRace(): void {
       btn.classList.toggle('pressed', pressed);
       if (engine) engine.setInput({ [key]: pressed });
     };
+    const clearAll = (): void => {
+      if (activePointers.size === 0) return;
+      activePointers.clear();
+      syncState();
+    };
+    clearHolders.push(clearAll);
+
+    btn.oncontextmenu = (e) => e.preventDefault();
     btn.onpointerdown = (e) => {
       e.preventDefault();
-      btn.setPointerCapture(e.pointerId);
+      try {
+        btn.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore if unsupported
+      }
       activePointers.add(e.pointerId);
       syncState();
     };
     const release = (e: PointerEvent): void => {
-      activePointers.delete(e.pointerId);
-      syncState();
+      if (activePointers.delete(e.pointerId)) {
+        syncState();
+      }
     };
     btn.onpointerup = release;
     btn.onpointercancel = release;
+    btn.onlostpointercapture = release;
   };
 
   bindHold('btn-left', 'left');
@@ -675,6 +697,11 @@ function startRace(): void {
   bindHold('btn-gas', 'gas');
   bindHold('btn-brake', 'brake');
   bindHold('btn-drift', 'drift');
+
+  const resetAllInputs = (): void => {
+    for (const clear of clearHolders) clear();
+    engine?.setInput({ left: false, right: false, gas: false, brake: false, drift: false });
+  };
 
   // Keyboard support
   const onKey = (down: boolean) => (e: KeyboardEvent): void => {
@@ -689,8 +716,21 @@ function startRace(): void {
   };
   const keyDownH = onKey(true);
   const keyUpH = onKey(false);
+  const onVisChange = (): void => {
+    if (document.hidden) resetAllInputs();
+  };
   window.addEventListener('keydown', keyDownH);
   window.addEventListener('keyup', keyUpH);
+  window.addEventListener('blur', resetAllInputs);
+  document.addEventListener('visibilitychange', onVisChange);
+
+  raceCleanup = () => {
+    window.removeEventListener('keydown', keyDownH);
+    window.removeEventListener('keyup', keyUpH);
+    window.removeEventListener('blur', resetAllInputs);
+    document.removeEventListener('visibilitychange', onVisChange);
+    resetAllInputs();
+  };
 
   document.getElementById('btn-autogas')!.onclick = () => {
     autoGas = !autoGas;
@@ -701,8 +741,6 @@ function startRace(): void {
   };
 
   document.getElementById('btn-exit-race')!.onclick = () => {
-    window.removeEventListener('keydown', keyDownH);
-    window.removeEventListener('keyup', keyUpH);
     racerSound.click();
     renderHome();
   };
