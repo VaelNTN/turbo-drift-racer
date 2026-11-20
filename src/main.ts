@@ -86,90 +86,95 @@ function renderHome(): void {
   const bests = getLocalBestTimes();
 
   app.innerHTML = `
-    <div class="screen" id="home-screen">
-      <div class="header-bar">
-        <div class="title-block">
-          <h1>🏎️ TURBO DRIFT RACER</h1>
-          <p>112 Drivers • 112 Cars • 8 Tracks • Power Drifting!</p>
+    <div class="screen home-screen" id="home-screen">
+      <div class="home-scroll">
+        <div class="header-bar">
+          <div class="title-block">
+            <h1>🏎️ TURBO DRIFT RACER</h1>
+            <p>112 Drivers • 112 Cars • 8 Tracks • Power Drifting!</p>
+          </div>
+          <div class="header-actions">
+            <button class="icon-btn" id="btn-sound" aria-label="Toggle sound" title="Toggle Sound">${racerSound.isMuted() ? '🔇' : '🔊'}</button>
+            <button class="icon-btn" id="btn-records" aria-label="Leaderboard" title="Leaderboard">🏆</button>
+            <button class="icon-btn" id="btn-more-games" aria-label="More Games by VaelNTN" title="More Games by VaelNTN">🎮</button>
+            <button class="icon-btn" id="btn-settings" aria-label="Settings" title="Settings">⚙️</button>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;">
-          <button class="icon-btn" id="btn-sound" aria-label="Toggle sound">${racerSound.isMuted() ? '🔇' : '🔊'}</button>
-          <button class="icon-btn" id="btn-records" aria-label="Leaderboard">🏆</button>
-          <button class="icon-btn" id="btn-settings" aria-label="Settings">⚙️</button>
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="card-title">
-          <span>Your Driver & Car</span>
-          <button class="secondary-cta" id="btn-open-garage" style="padding:5px 10px;font-size:0.78rem;">🎨 Choose 112 + 112</button>
-        </div>
-        <div class="combo-hero">
-          <canvas class="combo-preview-canvas" id="hero-combo-canvas" width="224" height="152"></canvas>
-          <div class="combo-info">
-            <div class="name-line">${escapeHtml(driver.name)} (${escapeHtml(driver.archetypeLabel)})</div>
-            <div class="sub-line">in ${escapeHtml(car.name)} (${escapeHtml(car.chassisLabel)})</div>
-            <div class="stat-pills">
-              <span class="pill">⚡ Top ${car.topSpeedStat}/10</span>
-              <span class="pill">🚀 Accel ${car.accelStat}/10</span>
-              <span class="pill">🔥 Drift ${car.driftStat}/10</span>
+        <div class="card">
+          <div class="card-title">
+            <span>Your Driver & Car</span>
+            <button class="secondary-cta" id="btn-open-garage" style="padding:5px 10px;font-size:0.78rem;">🎨 Choose 112 + 112</button>
+          </div>
+          <div class="combo-hero">
+            <canvas class="combo-preview-canvas" id="hero-combo-canvas" width="224" height="152"></canvas>
+            <div class="combo-info">
+              <div class="name-line">${escapeHtml(driver.name)} (${escapeHtml(driver.archetypeLabel)})</div>
+              <div class="sub-line">in ${escapeHtml(car.name)} (${escapeHtml(car.chassisLabel)})</div>
+              <div class="stat-pills">
+                <span class="pill">⚡ Top ${car.topSpeedStat}/10</span>
+                <span class="pill">🚀 Accel ${car.accelStat}/10</span>
+                <span class="pill">🔥 Drift ${car.driftStat}/10</span>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Game Mode</span>
+            <span style="font-size:0.72rem;color:#38bdf8;">${raceMode === 'online' ? '🌐 Online Room + Rivals' : '🤖 Vs. AI'}</span>
+          </div>
+          <div class="seg-row" style="margin-bottom:8px;">
+            <button class="seg-btn ${raceMode === 'ai' ? 'active' : ''}" id="mode-ai">🤖 Vs. AI</button>
+            <button class="seg-btn ${raceMode === 'online' ? 'active' : ''}" id="mode-online">🌐 Online Race</button>
+          </div>
+
+          ${
+            raceMode === 'ai'
+              ? `<div class="seg-row">
+                  <button class="seg-btn diff-easy ${difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
+                  <button class="seg-btn diff-medium ${difficulty === 'medium' ? 'active' : ''}" data-diff="medium">Medium</button>
+                  <button class="seg-btn diff-hard ${difficulty === 'hard' ? 'active' : ''}" data-diff="hard">Hard</button>
+                </div>`
+              : `<div class="online-box">
+                  <span style="font-size:0.8rem;color:#94a3b8;">Room:</span>
+                  <input class="text-input" id="room-code-input" value="${escapeHtml(roomCode)}" maxlength="16" placeholder="TURBO-1" />
+                  <button class="secondary-cta" id="btn-rand-room" style="padding:8px 10px;font-size:0.78rem;">🎲</button>
+                </div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:6px;">
+                  Share the same room code to race friends live, or compete directly against online rivals!
+                </div>`
+          }
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Select Track (3 Classic + 5 Special)</span>
+          </div>
+          <div class="track-strip">
+            ${TRACKS.map((t) => {
+              const best = bests[t.id];
+              return `
+                <button class="track-card ${t.id === selectedTrackId ? 'active' : ''}" data-track="${t.id}">
+                  <div class="t-name">${escapeHtml(t.name)}</div>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    ${t.isSpecial ? `<span class="pill special">⭐ ${escapeHtml(t.specialBadge || 'SPECIAL')}</span>` : `<span class="pill">Classic</span>`}
+                    ${best ? `<span class="pill">⏱️ ${fmtTime(best)}</span>` : ''}
+                  </div>
+                  <div class="t-desc">${escapeHtml(t.subtitle)}</div>
+                </button>
+              `;
+            }).join('')}
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">
-          <span>Game Mode</span>
-          <span style="font-size:0.72rem;color:#38bdf8;">${raceMode === 'online' ? '🌐 Online Room + Rivals' : '🤖 Vs. AI'}</span>
+      <div class="home-sticky-footer">
+        <button class="primary-cta" id="btn-start-race">🏁 START RACE!</button>
+        <div class="home-tip">
+          Auto-Gas: ${autoGas ? 'ON (◀️ ▶️ + 🔥 DRIFT)' : 'OFF (manual gas & brake)'} • Release 🔥 DRIFT on Blue/Orange/Purple for Turbo!
         </div>
-        <div class="seg-row" style="margin-bottom:8px;">
-          <button class="seg-btn ${raceMode === 'ai' ? 'active' : ''}" id="mode-ai">🤖 Vs. AI</button>
-          <button class="seg-btn ${raceMode === 'online' ? 'active' : ''}" id="mode-online">🌐 Online Race</button>
-        </div>
-
-        ${
-          raceMode === 'ai'
-            ? `<div class="seg-row">
-                <button class="seg-btn diff-easy ${difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
-                <button class="seg-btn diff-medium ${difficulty === 'medium' ? 'active' : ''}" data-diff="medium">Medium</button>
-                <button class="seg-btn diff-hard ${difficulty === 'hard' ? 'active' : ''}" data-diff="hard">Hard</button>
-              </div>`
-            : `<div class="online-box">
-                <span style="font-size:0.8rem;color:#94a3b8;">Room:</span>
-                <input class="text-input" id="room-code-input" value="${escapeHtml(roomCode)}" maxlength="16" placeholder="TURBO-1" />
-                <button class="secondary-cta" id="btn-rand-room" style="padding:8px 10px;font-size:0.78rem;">🎲</button>
-              </div>
-              <div style="font-size:0.72rem;color:#94a3b8;margin-top:6px;">
-                Share the same room code to race friends live, or compete directly against online rivals!
-              </div>`
-        }
-      </div>
-
-      <div class="card">
-        <div class="card-title">
-          <span>Select Track (3 Classic + 5 Special)</span>
-        </div>
-        <div class="track-strip">
-          ${TRACKS.map((t) => {
-            const best = bests[t.id];
-            return `
-              <button class="track-card ${t.id === selectedTrackId ? 'active' : ''}" data-track="${t.id}">
-                <div class="t-name">${escapeHtml(t.name)}</div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                  ${t.isSpecial ? `<span class="pill special">⭐ ${escapeHtml(t.specialBadge || 'SPECIAL')}</span>` : `<span class="pill">Classic</span>`}
-                  ${best ? `<span class="pill">⏱️ ${fmtTime(best)}</span>` : ''}
-                </div>
-                <div class="t-desc">${escapeHtml(t.subtitle)}</div>
-              </button>
-            `;
-          }).join('')}
-        </div>
-      </div>
-
-      <button class="primary-cta" id="btn-start-race">🏁 START RACE!</button>
-      <div style="text-align:center;font-size:0.73rem;color:#94a3b8;margin-top:8px;">
-        Tip: Auto-Gas is ${autoGas ? 'ON (use ◀️ ▶️ + 🔥 DRIFT)' : 'OFF (manual gas & brake)'}. Release 🔥 DRIFT when the bar turns Blue, Orange, or Purple for a Turbo Boost!
       </div>
     </div>
   `;
@@ -209,6 +214,10 @@ function renderHome(): void {
   document.getElementById('btn-records')!.onclick = () => {
     racerSound.click();
     void openLeaderboardModal();
+  };
+  document.getElementById('btn-more-games')!.onclick = () => {
+    racerSound.click();
+    openMoreGamesModal();
   };
   document.getElementById('btn-settings')!.onclick = () => {
     racerSound.click();
@@ -539,7 +548,7 @@ function startRace(): void {
 
       <div class="race-hud-top">
         <div class="hud-group">
-          <button class="icon-btn" id="btn-exit-race" aria-label="Exit to menu">🏠</button>
+          <button class="icon-btn" id="btn-exit-race" aria-label="Pause race">⏸️</button>
           <div class="hud-badge place" id="hud-place">1st/6</div>
           <div class="hud-badge" id="hud-lap">Lap 1/${trackDef.laps}</div>
         </div>
@@ -550,6 +559,7 @@ function startRace(): void {
         </div>
       </div>
 
+      <div class="wrong-way-banner hidden" id="wrong-way-banner">↺ WRONG WAY!</div>
       <div class="countdown-overlay" id="countdown-overlay">3</div>
 
       <div class="drift-meter-wrap hidden" id="drift-wrap">
@@ -577,6 +587,7 @@ function startRace(): void {
   const hudTimer = document.getElementById('hud-timer')!;
   const hudSpeed = document.getElementById('hud-speed')!;
   const countdownEl = document.getElementById('countdown-overlay')!;
+  const wrongWayEl = document.getElementById('wrong-way-banner')!;
   const driftWrap = document.getElementById('drift-wrap')!;
   const driftBar = document.getElementById('drift-bar') as HTMLElement;
   const driftLabel = document.getElementById('drift-label')!;
@@ -586,6 +597,7 @@ function startRace(): void {
     hudLap.textContent = `Lap ${snap.lap}/${snap.totalLaps}`;
     hudTimer.textContent = fmtTime(snap.raceTimeMs);
     hudSpeed.textContent = `${snap.speedKmh} km/h`;
+    wrongWayEl.classList.toggle('hidden', !snap.wrongWay);
 
     if (snap.countdown > 0) {
       countdownEl.textContent = String(snap.countdown);
@@ -742,7 +754,51 @@ function startRace(): void {
 
   document.getElementById('btn-exit-race')!.onclick = () => {
     racerSound.click();
-    renderHome();
+    if (!engine) return;
+    if (engine.isPaused()) return;
+    engine.pause();
+    resetAllInputs();
+    let confirmExit = false;
+    const modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.innerHTML = `
+      <div class="modal-card" style="text-align:center;">
+        <h2 style="margin:0 0 12px;color:#38bdf8;">⏸️ Race Paused</h2>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="primary-cta" id="pm-resume" style="padding:11px;">▶ Resume Race</button>
+          <button class="secondary-cta" id="pm-restart">🔁 Restart Track</button>
+          <button class="secondary-cta" id="pm-mute">${racerSound.isMuted() ? '🔇 Sound: OFF' : '🔊 Sound: ON'}</button>
+          <button class="secondary-cta" id="pm-exit" style="border-color:rgba(239,68,68,0.5);color:#fca5a5;">🏠 Exit to Menu</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector<HTMLButtonElement>('#pm-resume')!.onclick = () => {
+      racerSound.click();
+      modal.remove();
+      engine?.resume();
+    };
+    modal.querySelector<HTMLButtonElement>('#pm-restart')!.onclick = () => {
+      racerSound.click();
+      modal.remove();
+      startRace();
+    };
+    const muteBtn = modal.querySelector<HTMLButtonElement>('#pm-mute')!;
+    muteBtn.onclick = () => {
+      racerSound.toggleMute();
+      muteBtn.textContent = racerSound.isMuted() ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+    };
+    const exitBtn = modal.querySelector<HTMLButtonElement>('#pm-exit')!;
+    exitBtn.onclick = () => {
+      if (!confirmExit) {
+        confirmExit = true;
+        exitBtn.textContent = '⚠️ Tap Again to Confirm Exit';
+        return;
+      }
+      racerSound.click();
+      modal.remove();
+      renderHome();
+    };
   };
 }
 
@@ -904,6 +960,34 @@ function openSettingsModal(): void {
     modal.remove();
     renderHome();
   };
+}
+
+function openMoreGamesModal(): void {
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;color:#38bdf8;">🎮 More Games by VaelNTN Studios</h3>
+        <button class="icon-btn" id="close-more" aria-label="Close">✕</button>
+      </div>
+      <div class="standings-list">
+        <div class="standing-row me" style="flex-direction:column;align-items:flex-start;gap:4px;">
+          <span style="color:#facc15;font-weight:900;">⭐ STARFORGE SURVIVORS (Flagship Premium)</span>
+          <span style="font-size:0.78rem;color:#cbd5e1;">Sci-fi action roguelite · 6 heroes, 6 unique multi-phase bosses, relics & Ascension tiers · 100% Ad-Free!</span>
+        </div>
+        <div class="standing-row"><span>🏎️ Apex Underground</span><span style="color:#94a3b8;">Free Street Tuner</span></div>
+        <div class="standing-row"><span>🐾 Critter Kart GP</span><span style="color:#94a3b8;">Free Kart Racer</span></div>
+        <div class="standing-row"><span>🏜️ Dune Baja Rally</span><span style="color:#94a3b8;">Free Off-Road Stunts</span></div>
+        <div class="standing-row"><span>✈️ SkyCommand 3D</span><span style="color:#94a3b8;">Free 3D Flight Sim</span></div>
+        <div class="standing-row"><span>🕹️ Arcade 100+ Hub</span><span style="color:#94a3b8;">100 Free Mini-Games</span></div>
+      </div>
+      <button class="primary-cta" id="more-ok" style="padding:10px;">Close</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelector<HTMLButtonElement>('#close-more')!.onclick = () => modal.remove();
+  modal.querySelector<HTMLButtonElement>('#more-ok')!.onclick = () => modal.remove();
 }
 
 renderHome();

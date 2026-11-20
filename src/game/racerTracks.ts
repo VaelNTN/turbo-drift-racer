@@ -440,8 +440,9 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
   const w = Math.ceil(bounds.maxX - bounds.minX);
   const h = Math.ceil(bounds.maxY - bounds.minY);
   const off = document.createElement('canvas');
-  // Downscale slightly for huge tracks so mobile memory stays light while still crisp
-  const pixelScale = 0.65;
+  // High-clarity cached track canvas (0.85 scale, safely capped below 3200px for mobile GPUs)
+  const maxDim = Math.max(w, h);
+  const pixelScale = Math.min(0.85, 3200 / Math.max(1, maxDim));
   off.width = Math.ceil(w * pixelScale);
   off.height = Math.ceil(h * pixelScale);
   const ctx = off.getContext('2d')!;
@@ -658,6 +659,113 @@ export function renderStaticTrackCanvas(track: BuiltTrack): HTMLCanvasElement {
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
+
+  // 3b. Figure-8 Overpass Shadow & Elevated Crossing Deck
+  if (def.isFigure8) {
+    const mid = Math.floor(points.length * 0.5);
+    const span = 14;
+    const startI = Math.max(2, mid - span);
+    const endI = Math.min(points.length - 3, mid + span);
+
+    const traceOverpass = (ox = 0, oy = 0): void => {
+      ctx.beginPath();
+      for (let i = startI; i <= endI; i++) {
+        const p = points[i];
+        if (i === startI) ctx.moveTo(p.x + ox, p.y + oy);
+        else ctx.lineTo(p.x + ox, p.y + oy);
+      }
+    };
+
+    ctx.save();
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+
+    // Deep soft drop shadow cast onto the lower roadway beneath the crossing
+    traceOverpass(18, 22);
+    ctx.strokeStyle = 'rgba(2, 6, 23, 0.42)';
+    ctx.lineWidth = def.roadWidth + 44;
+    ctx.stroke();
+
+    traceOverpass(10, 14);
+    ctx.strokeStyle = 'rgba(2, 6, 23, 0.58)';
+    ctx.lineWidth = def.roadWidth + 32;
+    ctx.stroke();
+
+    // Bridge concrete/steel side parapet walls
+    traceOverpass();
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = def.roadWidth + 28;
+    ctx.stroke();
+
+    traceOverpass();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = def.roadWidth + 16;
+    ctx.stroke();
+
+    // Elevated overpass asphalt deck
+    traceOverpass();
+    ctx.strokeStyle = '#3b4a60';
+    ctx.lineWidth = def.roadWidth;
+    ctx.stroke();
+
+    // Subtle bridge expansion seams & center dashes
+    traceOverpass();
+    ctx.strokeStyle = def.lineColor;
+    ctx.globalAlpha = 0.72;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([20, 20]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // 3c. Painted Turn-Direction & Approach Chevrons on Road Surface
+  const nPts = points.length;
+  for (let i = 0; i < nPts; i += 6) {
+    const pPrev = points[(i - 4 + nPts) % nPts];
+    const pCurr = points[i];
+    const pNext = points[(i + 6) % nPts];
+    const a1 = Math.atan2(pCurr.ty, pCurr.tx);
+    const a2 = Math.atan2(pNext.ty, pNext.tx);
+    let dAng = a2 - a1;
+    while (dAng > Math.PI) dAng -= Math.PI * 2;
+    while (dAng < -Math.PI) dAng += Math.PI * 2;
+
+    const nearCrossing =
+      def.isFigure8 &&
+      (i < 16 || i > nPts - 18 || Math.abs(i - Math.floor(nPts * 0.5)) < 18);
+    const isSharpTurn = Math.abs(dAng) > 0.28;
+    const isRegularGuide = i % 24 === 0 && i > 6 && i < nPts - 6;
+
+    if (!nearCrossing && !isSharpTurn && !isRegularGuide) continue;
+
+    // Place chevron slightly toward outside of sharp turns or dead-center on crossing approaches
+    const latShift = isSharpTurn ? -Math.sign(dAng) * def.roadWidth * 0.16 : 0;
+    const cx = pCurr.x + pCurr.nx * latShift;
+    const cy = pCurr.y + pCurr.ny * latShift;
+    const heading = Math.atan2(pNext.y - pPrev.y, pNext.x - pPrev.x);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(heading);
+    ctx.strokeStyle = nearCrossing
+      ? 'rgba(250, 204, 21, 0.78)'
+      : isSharpTurn
+        ? 'rgba(56, 189, 248, 0.62)'
+        : 'rgba(248, 250, 252, 0.24)';
+    ctx.lineWidth = nearCrossing ? 5 : 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const dx of [-10, 8]) {
+      ctx.beginPath();
+      ctx.moveTo(dx - 8, -15);
+      ctx.lineTo(dx + 8, 0);
+      ctx.lineTo(dx - 8, 15);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   // 4. Start / Finish Checkered Line + Gantry Pillars + Stadium Light Towers
   const sp = points[0];

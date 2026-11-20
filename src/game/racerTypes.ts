@@ -134,4 +134,6 @@ export interface RaceHudSnapshot {
   standings: RacerProgressEntry[];
   respawning: boolean;
   onlineConnectedCount: number;
+  wrongWay: boolean;
+  upcomingTurn: 'none' | 'left' | 'right' | 'crossing';
 }

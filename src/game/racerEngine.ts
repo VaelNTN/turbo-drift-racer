@@ -150,8 +150,11 @@ export class TurboDriftEngine {
   private finishedEmitted = false;
   private rafId = 0;
   private running = false;
+  private paused = false;
   private lastTs = 0;
   private lastHudPush = 0;
+  private wrongWayTimer = 0;
+  private wrongWay = false;
 
   private camX = 0;
   private camY = 0;
@@ -163,6 +166,9 @@ export class TurboDriftEngine {
   private dpr = 1;
   private cachedMinimapTop = 56;
   private lastMinimapMeasure = 0;
+
+  private lightCanvas: HTMLCanvasElement | null = null;
+  private lightCtx: CanvasRenderingContext2D | null = null;
 
   private onHud: (snap: RaceHudSnapshot) => void;
   private onFinish?: (snap: RaceHudSnapshot) => void;
@@ -331,6 +337,22 @@ export class TurboDriftEngine {
     this.autoGas = val;
   }
 
+  pause(): void {
+    if (this.paused || this.finishedEmitted) return;
+    this.paused = true;
+    this.setInput({ left: false, right: false, gas: false, brake: false, drift: false });
+  }
+
+  resume(): void {
+    if (!this.paused) return;
+    this.paused = false;
+    this.lastTs = performance.now();
+  }
+
+  isPaused(): boolean {
+    return this.paused;
+  }
+
   start(): void {
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
@@ -347,9 +369,11 @@ export class TurboDriftEngine {
       if (!this.running) return;
       const dt = Math.min(0.05, Math.max(0.001, (ts - this.lastTs) / 1000));
       this.lastTs = ts;
-      this.update(dt);
+      if (!this.paused) {
+        this.update(dt);
+      }
       this.render();
-      if (ts - this.lastHudPush > 75) {
+      if (!this.paused && ts - this.lastHudPush > 75) {
         this.lastHudPush = ts;
         this.emitHud();
       }
@@ -546,8 +570,19 @@ export class TurboDriftEngine {
     this.camZoom += (targetZoom - this.camZoom) * Math.min(1, dt * 4);
     this.shake = Math.max(0, this.shake - dt * 16);
 
+    // Wrong-way detection
+    const curPt = this.track.points[player.segIndex];
+    const headingDot = Math.cos(player.angle) * curPt.tx + Math.sin(player.angle) * curPt.ty;
+    if (canDrive && !player.finished && player.respawnTimer <= 0 && player.speed > 40 && headingDot < -0.35) {
+      this.wrongWayTimer = Math.min(2, this.wrongWayTimer + dt);
+    } else {
+      this.wrongWayTimer = Math.max(0, this.wrongWayTimer - dt * 2.5);
+    }
+    this.wrongWay = this.wrongWayTimer > 0.38;
+
     if (player.finished && !this.finishedEmitted) {
       this.finishedEmitted = true;
+      this.wrongWay = false;
       const snap = this.buildHudSnapshot();
       const win = snap.place === 1;
       racerSound.finish(win);
@@ -978,6 +1013,31 @@ export class TurboDriftEngine {
     }));
   }
 
+  private computeUpcomingTurn(player: SimRacer): 'none' | 'left' | 'right' | 'crossing' {
+    if (this.countdownTimer > 0 || player.finished || this.wrongWay) return 'none';
+    const pts = this.track.points;
+    const n = pts.length;
+    const idx = player.segIndex;
+
+    if (this.track.def.isFigure8) {
+      const mid = Math.floor(n * 0.5);
+      const distTo0 = (n - idx) % n;
+      const distToMid = (mid - idx + n) % n;
+      if ((distTo0 >= 3 && distTo0 <= 22) || (distToMid >= 3 && distToMid <= 22)) {
+        return 'crossing';
+      }
+    }
+
+    const pNow = pts[(idx + 4) % n];
+    const pAhead = pts[(idx + 18) % n];
+    const angNow = Math.atan2(pNow.ty, pNow.tx);
+    const angAhead = Math.atan2(pAhead.ty, pAhead.tx);
+    const delta = normalizeAngle(angAhead - angNow);
+    if (delta < -0.52) return 'left';
+    if (delta > 0.52) return 'right';
+    return 'none';
+  }
+
   private buildHudSnapshot(): RaceHudSnapshot {
     const standings = this.computeStandings();
     const player = this.getPlayer();
@@ -998,11 +1058,119 @@ export class TurboDriftEngine {
       standings,
       respawning: player.respawnTimer > 0,
       onlineConnectedCount: 1 + remoteCount,
+      wrongWay: this.wrongWay,
+      upcomingTurn: this.computeUpcomingTurn(player),
     };
   }
 
   private emitHud(): void {
     this.onHud(this.buildHudSnapshot());
+  }
+
+  private renderFeatheredHeadlights(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    camCenterY: number,
+    finalZoom: number,
+    shakeX: number,
+    shakeY: number
+  ): void {
+    const scale = 0.5;
+    const lw = Math.max(120, Math.round(w * scale));
+    const lh = Math.max(120, Math.round(h * scale));
+
+    if (!this.lightCanvas) {
+      this.lightCanvas = document.createElement('canvas');
+      this.lightCtx = this.lightCanvas.getContext('2d');
+    }
+    if (!this.lightCanvas || !this.lightCtx) return;
+    if (this.lightCanvas.width !== lw || this.lightCanvas.height !== lh) {
+      this.lightCanvas.width = lw;
+      this.lightCanvas.height = lh;
+    }
+
+    const lctx = this.lightCtx;
+    lctx.save();
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.globalCompositeOperation = 'source-over';
+    lctx.clearRect(0, 0, lw, lh);
+
+    // Rich midnight forest darkness veil
+    lctx.fillStyle = 'rgba(2, 5, 16, 0.80)';
+    lctx.fillRect(0, 0, lw, lh);
+
+    // Punch soft feathered light halos & headlight beams for EVERY racer (player + AI + remote)
+    lctx.globalCompositeOperation = 'destination-out';
+    const visibleGlows: Array<{ sx: number; sy: number; angle: number; isPlayer: boolean }> = [];
+
+    for (const r of this.racers) {
+      if (r.respawnTimer > 0) continue;
+      const sx = w * 0.5 + (r.x - this.camX) * finalZoom + shakeX;
+      const sy = camCenterY + (r.y - this.camY) * finalZoom + shakeY;
+      if (sx < -420 || sx > w + 420 || sy < -420 || sy > h + 420) continue;
+
+      visibleGlows.push({ sx, sy, angle: r.angle, isPlayer: r.isPlayer });
+
+      const lx = sx * scale;
+      const ly = sy * scale;
+      const cos = Math.cos(r.angle);
+      const sin = Math.sin(r.angle);
+
+      // Soft ambient visibility halo around the car
+      const haloR = (r.isPlayer ? 105 : 68) * finalZoom * scale;
+      const haloGrad = lctx.createRadialGradient(lx, ly, haloR * 0.12, lx, ly, haloR);
+      haloGrad.addColorStop(0, r.isPlayer ? 'rgba(0,0,0,0.96)' : 'rgba(0,0,0,0.82)');
+      haloGrad.addColorStop(0.6, r.isPlayer ? 'rgba(0,0,0,0.52)' : 'rgba(0,0,0,0.36)');
+      haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      lctx.fillStyle = haloGrad;
+      lctx.beginPath();
+      lctx.arc(lx, ly, haloR, 0, Math.PI * 2);
+      lctx.fill();
+
+      // Volumetric feathered headlight beam using smooth overlapping radial pools
+      const beamLen = (r.isPlayer ? 365 : 275) * finalZoom * scale;
+      const steps = 6;
+      for (let i = 1; i <= steps; i++) {
+        const frac = i / steps;
+        const bx = lx + cos * (beamLen * frac * 0.9);
+        const by = ly + sin * (beamLen * frac * 0.9);
+        const br = (r.isPlayer ? 28 : 22) * finalZoom * scale + beamLen * frac * 0.34;
+        const alpha = (r.isPlayer ? 0.94 : 0.78) * (1 - frac * 0.38);
+        const g = lctx.createRadialGradient(bx, by, br * 0.08, bx, by, br);
+        g.addColorStop(0, `rgba(0,0,0,${alpha.toFixed(3)})`);
+        g.addColorStop(0.55, `rgba(0,0,0,${(alpha * 0.48).toFixed(3)})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        lctx.fillStyle = g;
+        lctx.beginPath();
+        lctx.arc(bx, by, br, 0, Math.PI * 2);
+        lctx.fill();
+      }
+    }
+    lctx.restore();
+
+    // Composite darkness mask over the viewport
+    ctx.save();
+    ctx.drawImage(this.lightCanvas, 0, 0, w, h);
+
+    // Subtle warm golden-white beam tint ahead of each car's headlamps
+    ctx.globalCompositeOperation = 'lighter';
+    for (const g of visibleGlows) {
+      const cos = Math.cos(g.angle);
+      const sin = Math.sin(g.angle);
+      const len = (g.isPlayer ? 220 : 165) * finalZoom;
+      const gx = g.sx + cos * (len * 0.55);
+      const gy = g.sy + sin * (len * 0.55);
+      const rad = len * 0.58;
+      const warm = ctx.createRadialGradient(gx, gy, rad * 0.05, gx, gy, rad);
+      warm.addColorStop(0, g.isPlayer ? 'rgba(254, 243, 199, 0.14)' : 'rgba(224, 242, 254, 0.10)');
+      warm.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = warm;
+      ctx.beginPath();
+      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private render(): void {
@@ -1024,9 +1192,10 @@ export class TurboDriftEngine {
     // Responsive base zoom so both phones & tablets see plenty of upcoming corner
     const responsiveBase = Math.min(w, h) / 620;
     const finalZoom = this.camZoom * responsiveBase;
+    const camCenterY = w > h && h < 540 ? h * 0.5 : h * 0.54;
 
     ctx.save();
-    ctx.translate(w * 0.5 + shakeX, h * 0.55 + shakeY);
+    ctx.translate(w * 0.5 + shakeX, camCenterY + shakeY);
     ctx.scale(finalZoom, finalZoom);
     ctx.translate(-this.camX, -this.camY);
 
@@ -1129,30 +1298,9 @@ export class TurboDriftEngine {
       this.drawSpeedLines(ctx, w, h, player.boostLeft > 0 ? 0.34 : 0.14, player.boostTier);
     }
 
-    // 9. Haunted Castle Woods darkness + real headlight cones
+    // 9. Haunted Castle Woods darkness + soft feathered headlights for ALL racers
     if (this.track.def.hasHeadlights) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(2, 4, 14, 0.72)';
-      ctx.beginPath();
-      ctx.rect(0, 0, w, h);
-
-      const px = w * 0.5 + (player.x - this.camX) * finalZoom + shakeX;
-      const py = h * 0.55 + (player.y - this.camY) * finalZoom + shakeY;
-
-      ctx.moveTo(px + 95, py);
-      ctx.arc(px, py, 95, 0, Math.PI * 2, true);
-
-      const beamLen = 380 * finalZoom;
-      const spread = 0.42;
-      const a1 = player.angle - spread;
-      const a2 = player.angle + spread;
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + Math.cos(a2) * beamLen, py + Math.sin(a2) * beamLen);
-      ctx.lineTo(px + Math.cos(a1) * beamLen, py + Math.sin(a1) * beamLen);
-      ctx.closePath();
-
-      ctx.fill('evenodd');
-      ctx.restore();
+      this.renderFeatheredHeadlights(ctx, w, h, camCenterY, finalZoom, shakeX, shakeY);
     }
 
     // 10. Minimap in top-right below HUD (zero overlap)
@@ -1297,7 +1445,9 @@ export class TurboDriftEngine {
 
   private renderMinimap(ctx: CanvasRenderingContext2D, viewW: number, viewH: number): void {
     const mapSize = viewW < 400 || viewH < 460 ? 68 : 84;
-    const mx = viewW - mapSize - 10;
+    const safeRightStr = getComputedStyle(document.documentElement).getPropertyValue('--safe-right');
+    const safeRight = Number.parseFloat(safeRightStr) || 0;
+    const mx = viewW - mapSize - Math.max(10, safeRight + 8);
     const my = this.getMinimapTop(viewH, mapSize);
     const b = this.track.bounds;
     const span = Math.max(b.maxX - b.minX, b.maxY - b.minY);
